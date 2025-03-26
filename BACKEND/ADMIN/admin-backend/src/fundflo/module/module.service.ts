@@ -1,24 +1,26 @@
-import * as moduleRepo from "./module.repository";
-import { NotFoundError } from "../../utils/errors";
+import ModuleRepository from './module.repository';
 
-export const getModules = async () => {
-  return await moduleRepo.getAllModules();
-};
+class ModuleService {
+  async createModule(data: any) {
+    return await ModuleRepository.create(data);
+  }
 
-export const getModule = async (id: string) => {
-  const module = await moduleRepo.getModuleById(id);
-  if (!module) throw new NotFoundError();
-  return module;
-};
+  async getModules(page: number, limit: number, search?: string) {
+    const offset = (page - 1) * limit;
+    return await ModuleRepository.findAll(limit, offset, search);
+  }
 
-export const addModule = async (data: any) => {
-  return await moduleRepo.createModule(data);
-};
+  async getModuleById(id: string) {
+    return await ModuleRepository.findById(id);
+  }
 
-export const editModule = async (id: string, data: any) => {
-  return await moduleRepo.updateModule(id, data);
-};
+  async updateModule(id: string, data: any) {
+    return await ModuleRepository.update(id, data);
+  }
 
-export const removeModule = async (id: string) => {
-  return await moduleRepo.deleteModule(id);
-};
+  async deleteModule(id: string) {
+    return await ModuleRepository.delete(id);
+  }
+}
+
+export default new ModuleService();

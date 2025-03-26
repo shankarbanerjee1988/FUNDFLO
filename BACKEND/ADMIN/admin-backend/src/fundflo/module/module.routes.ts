@@ -1,9 +1,12 @@
-import express from "express";
-import * as moduleController from "./module.controller";
+import { Router } from "express";
+import ModuleController from './module.controller';
 
-const router = express.Router();
+const router = Router();
 
-router.get("/", moduleController.getModules);
-router.get("/:id", moduleController.getModuleById);
+router.post("/", ModuleController.create);
+router.get("/list", ModuleController.getAll);
+// router.get("/:id",ModuleController.getById);
+// router.put("/:id", moduleController.update.bind(moduleController));
+// router.delete("/:id", moduleController.delete.bind(moduleController));
 
 export default router;

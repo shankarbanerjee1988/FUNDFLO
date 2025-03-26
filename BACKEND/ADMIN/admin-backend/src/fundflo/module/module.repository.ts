@@ -1,21 +1,35 @@
-import Module from "./module.model";
+import Module from './module.model';
+import { Op } from 'sequelize';
 
-export const getAllModules = async () => {
-  return await Module.findAll();
-};
+class ModuleRepository {
+  async create(data: any) {
+    return await Module.create(data);
+  }
 
-export const getModuleById = async (id: string) => {
-  return await Module.findByPk(id);
-};
+  async findAll(limit: number, offset: number, search?: string) {
+    const whereClause = search
+      ? {
+          [Op.or]: [
+            { module_code: { [Op.iLike]: `%${search}%` } },
+            { module_name: { [Op.iLike]: `%${search}%` } }
+          ],
+        }
+      : {};
+    
+    return await Module.findAndCountAll({ where: whereClause, limit, offset });
+  }
 
-export const createModule = async (data: any) => {
-  return await Module.create(data);
-};
+  async findById(id: string) {
+    return await Module.findByPk(id);
+  }
 
-export const updateModule = async (id: string, data: any) => {
-  return await Module.update(data, { where: { id } });
-};
+  async update(id: string, data: any) {
+    return await Module.update(data, { where: { id } });
+  }
 
-export const deleteModule = async (id: string) => {
-  return await Module.destroy({ where: { id } });
-};
+  async delete(id: string) {
+    return await Module.destroy({ where: { id } });
+  }
+}
+
+export default new ModuleRepository();
