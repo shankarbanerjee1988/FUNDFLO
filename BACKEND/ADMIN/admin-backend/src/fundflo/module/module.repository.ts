@@ -1,35 +1,47 @@
-import Module from './module.model';
+// repository/module.repository.ts
 import { Op } from 'sequelize';
+import Module from './module.model';
 
 class ModuleRepository {
-  async create(data: any) {
-    return await Module.create(data);
-  }
+    async create(moduleData: Partial<Module>) {
+        return await Module.create(moduleData);
+    }
 
-  async findAll(limit: number, offset: number, search?: string) {
-    const whereClause = search
-      ? {
-          [Op.or]: [
-            { module_code: { [Op.iLike]: `%${search}%` } },
-            { module_name: { [Op.iLike]: `%${search}%` } }
-          ],
+    async findAll({ page = 1, size = 10, search = '', filter = {}, orderBy = 'updated_date', order = 'DESC', groupBy }: any) {
+        const offset = (page - 1) * size;
+        const whereCondition: any = {};
+
+        if (search) {
+            whereCondition.module_name = { [Op.iLike]: `%${search}%` };
         }
-      : {};
-    
-    return await Module.findAndCountAll({ where: whereClause, limit, offset });
-  }
 
-  async findById(id: string) {
-    return await Module.findByPk(id);
-  }
+        Object.assign(whereCondition, filter);
 
-  async update(id: string, data: any) {
-    return await Module.update(data, { where: { id } });
-  }
+        const options: any = {
+            where: whereCondition,
+            limit: size,
+            offset,
+            order: [[orderBy, order]],
+        };
 
-  async delete(id: string) {
-    return await Module.destroy({ where: { id } });
-  }
+        if (groupBy) {
+            options.group = [groupBy];
+        }
+
+        return await Module.findAndCountAll(options);
+    }
+
+    async findById(id: string) {
+        return await Module.findByPk(id);
+    }
+
+    async update(id: string, moduleData: Partial<Module>) {
+        return await Module.update(moduleData, { where: { id } });
+    }
+
+    async delete(id: string) {
+        return await Module.destroy({ where: { id } });
+    }
 }
 
 export default new ModuleRepository();

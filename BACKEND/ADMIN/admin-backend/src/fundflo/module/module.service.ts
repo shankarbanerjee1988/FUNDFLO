@@ -1,26 +1,27 @@
-import ModuleRepository from './module.repository';
+// service/module.service.ts
+import moduleRepository from './module.repository';
+import Module from './module.model';
 
 class ModuleService {
-  async createModule(data: any) {
-    return await ModuleRepository.create(data);
-  }
+    async createModule(moduleData: Partial<Module>) {
+        return await moduleRepository.create(moduleData);
+    }
 
-  async getModules(page: number, limit: number, search?: string) {
-    const offset = (page - 1) * limit;
-    return await ModuleRepository.findAll(limit, offset, search);
-  }
+    async getAllModules(queryParams: any) {
+        return await moduleRepository.findAll(queryParams);
+    }
 
-  async getModuleById(id: string) {
-    return await ModuleRepository.findById(id);
-  }
+    async getModuleById(id: string) {
+        return await moduleRepository.findById(id);
+    }
 
-  async updateModule(id: string, data: any) {
-    return await ModuleRepository.update(id, data);
-  }
+    async updateModule(id: string, moduleData: Partial<Module>) {
+        return await moduleRepository.update(id, moduleData);
+    }
 
-  async deleteModule(id: string) {
-    return await ModuleRepository.delete(id);
-  }
+    async deleteModule(id: string) {
+        return await moduleRepository.delete(id);
+    }
 }
 
 export default new ModuleService();
