@@ -1,0 +1,95 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_REGION = 'us-east-1'
+        AWS_ACCOUNT_ID = '<AWS_ACCOUNT_ID>'  // Replace with actual AWS Account ID
+        ECR_REPO = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/my-ts-app"
+        ECS_CLUSTER = 'my-ts-ecs-app-cluster'
+        ECS_SERVICE = 'my-ts-ecs-app-service'
+        DOCKER_IMAGE_TAG = "latest"
+        TF_DIR = "terraform" // Path to Terraform configuration
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                git branch: 'main', url: 'https://github.com/your-repo.git'
+            }
+        }
+
+        stage('Terraform Init') {
+            steps {
+                dir("${TF_DIR}") {
+                    withAWS(credentials: 'aws-jenkins-credentials', region: "$AWS_REGION") {
+                        sh 'terraform init'
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                dir("${TF_DIR}") {
+                    withAWS(credentials: 'aws-jenkins-credentials', region: "$AWS_REGION") {
+                        sh 'terraform plan -out=tfplan'
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            steps {
+                dir("${TF_DIR}") {
+                    withAWS(credentials: 'aws-jenkins-credentials', region: "$AWS_REGION") {
+                        sh 'terraform apply -auto-approve tfplan'
+                    }
+                }
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                sh 'npm install'
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                sh 'npm test'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t $ECR_REPO:$DOCKER_IMAGE_TAG .'
+            }
+        }
+
+        stage('Push to ECR') {
+            steps {
+                withAWS(credentials: 'aws-jenkins-credentials', region: "$AWS_REGION") {
+                    sh 'aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPO'
+                    sh 'docker push $ECR_REPO:$DOCKER_IMAGE_TAG'
+                }
+            }
+        }
+
+        stage('Deploy to ECS') {
+            steps {
+                withAWS(credentials: 'aws-jenkins-credentials', region: "$AWS_REGION") {
+                    sh 'aws ecs update-service --cluster $ECS_CLUSTER --service $ECS_SERVICE --force-new-deployment'
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '✅ Deployment Successful!'
+        }
+        failure {
+            echo '❌ Deployment Failed!'
+        }
+    }
+}
