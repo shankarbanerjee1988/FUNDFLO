@@ -1,0 +1,79 @@
+service: FUNDFLO-FILES-UPLOAD-SERVICE
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: dev
+  region: ap-south-1
+  memorySize: 256 # Adjust memory as needed
+  timeout: 300 # Lambda function timeout for large file uploads
+  environment:
+    BUCKET_NAME: fundflo-files-upload-service-ap-south-1
+    AUTH_SERVICE_URL: "https://ac-apis-dev.uat.fundflo.ai/v1/authentication"
+    MAX_FILE_SIZE: 5 # Max file size in MB
+    MAX_FILES: 10 # Max number of files
+
+  apiGateway:
+    # Define binary media types if you're handling file uploads
+    binaryMediaTypes:
+      - 'multipart/form-data'
+    timeout: 30 # Set API Gateway timeout (in seconds)
+
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - s3:PutObject
+        - s3:GetObject
+        - s3:ListBucket
+        - s3:DeleteObject
+      Resource:
+        - arn:aws:s3:::fundflo-files-upload-service-ap-south-1
+        - arn:aws:s3:::fundflo-files-upload-service-ap-south-1/*
+
+    - Effect: Allow
+      Action:
+        - lambda:InvokeFunction
+      Resource:
+        - arn:aws:lambda:ap-south-1:*:function:FUNDFLO-FILES-UPLOAD-SERVICE
+
+    - Effect: Allow
+      Action:
+        - logs:CreateLogStream
+        - logs:CreateLogGroup
+        - logs:PutLogEvents
+      Resource:
+        - arn:aws:logs:ap-south-1:*:*
+
+    - Effect: Allow
+      Action:
+        - apigateway:GET
+        - apigateway:POST
+        - apigateway:PUT
+        - apigateway:DELETE
+      Resource: "*"
+
+functions:
+  uploadFiles:
+    handler: handler.uploadFiles
+    timeout: 300 # Lambda function timeout
+    events:
+      - http:
+          path: uploadFiles
+          method: post
+          cors: true
+
+  readFiles:
+    handler: handler.readFiles
+    timeout: 300 # Lambda function timeout
+    events:
+      - http:
+          path: readFiles
+          method: get
+          cors: true
+
+resources:
+  Resources:
+    S3Bucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: fundflo-files-upload-service-ap-south-1

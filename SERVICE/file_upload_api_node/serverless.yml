@@ -1,0 +1,81 @@
+service: fundflo-file-upload-services
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: dev
+  region: ap-south-1
+  memorySize: 256 # Adjust memory as needed
+  timeout: 300 # Lambda function timeout for large file uploads
+  environment:
+    BUCKET_NAME: fundflo-file-upload-services-ap-south-1
+    AUTH_SERVICE_URL: "https://ac-apis-dev.uat.fundflo.ai/v1/authentication"
+    MAX_FILE_SIZE: 5 # Max file size in MB
+    MAX_FILES: 10 # Max number of files
+
+  apiGateway:
+    binary:
+      types:
+        - 'multipart/form-data' # Add this line to handle multipart data
+    timeout: 300 # Set API Gateway timeout (in seconds)
+  # IAM role statements
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - "s3:PutObject"
+        - "s3:GetObject"
+        - "s3:ListBucket"
+      Resource:
+        - arn:aws:s3:::${self:provider.environment.BUCKET_NAME}/*
+        - arn:aws:s3:::${self:provider.environment.BUCKET_NAME}
+    - Effect: "Allow"
+      Action:
+        - "lambda:InvokeFunction"
+      Resource: "*"
+    - Effect: "Allow"
+      Action:
+        - "logs:CreateLogGroup"
+        - "logs:CreateLogStream"
+        - "logs:PutLogEvents"
+      Resource: "arn:aws:logs:*:*:*"
+
+functions:
+  uploadFiles:
+    handler: handler.uploadFiles
+    events:
+      - http:
+          path: upload
+          method: post
+          cors: true
+          integration: lambda-proxy
+          request:
+            parameters:
+              querystrings:
+                moduleName: true
+                enterpriseId: true
+                folderName: true
+                subFolderName: true
+                subFolderName1: true
+          timeout: 300
+
+  readFiles:
+    handler: handler.readFiles
+    events:
+      - http:
+          path: read
+          method: get
+          cors: true
+          integration: lambda-proxy
+          request:
+            parameters:
+              querystrings:
+                filePaths: true
+          timeout: 300
+
+resources:
+  Resources:
+    # You can define any additional AWS resources here
+    MyS3Bucket:
+      Type: 'AWS::S3::Bucket'
+      Properties:
+        BucketName: fundflo-file-upload-services-ap-south-1
