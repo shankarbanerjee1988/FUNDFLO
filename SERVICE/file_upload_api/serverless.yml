@@ -1,0 +1,76 @@
+service: FUND-PROD-FILE-UPLOAD-SERVICES
+
+plugins:
+  - serverless-python-requirements
+
+custom:
+  pythonRequirements:
+    dockerizePip: false
+    zip: true
+
+provider:
+  name: aws
+  runtime: python3.9
+  region: ap-south-1
+  environment:
+    BUCKET_NAME: fundflo-upload-files-ap-south-1-tests
+    AUTH_SERVICE_URL: "https://ac-apis-dev.uat.fundflo.ai/v1/authentication"
+
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - s3:PutObject
+        - s3:GetObject
+        - s3:ListBucket
+        - s3:DeleteObject
+      Resource:
+        - arn:aws:s3:::fundflo-upload-files-ap-south-1-tests
+        - arn:aws:s3:::fundflo-upload-files-ap-south-1-tests/*
+
+    - Effect: Allow
+      Action:
+        - lambda:InvokeFunction
+      Resource:
+        - arn:aws:lambda:ap-south-1:*:function:FUND-PROD-FILE-UPLOAD-SERVICES
+
+    - Effect: Allow
+      Action:
+        - logs:CreateLogStream
+        - logs:CreateLogGroup
+        - logs:PutLogEvents
+      Resource:
+        - arn:aws:logs:ap-south-1:*:*
+
+    - Effect: Allow
+      Action:
+        - apigateway:GET
+        - apigateway:POST
+        - apigateway:PUT
+        - apigateway:DELETE
+      Resource: "*"
+
+functions:
+  uploadFiles:
+    handler: handler.upload_files
+    events:
+      - http:
+          path: upload
+          method: post
+          cors: true
+          #authorizer: aws_iam
+
+  readFile:
+    handler: handler.read_file
+    events:
+      - http:
+          path: readfile
+          method: get
+          cors: true
+          #authorizer: aws_iam
+
+resources:
+  Resources:
+    S3Bucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: fundflo-upload-files-ap-south-1-tests
