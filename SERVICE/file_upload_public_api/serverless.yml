@@ -1,0 +1,75 @@
+service: ff-private-file-upload-service
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: prod
+  region: ap-south-1
+  memorySize: 256 # Adjust memory as needed
+  timeout: 300 # Lambda function timeout for large file uploads
+  environment:
+    BUCKET_NAME: ff-private-file-upload-service-ap-south-1
+    AUTH_SERVICE_URL: "https://ac-apis-dev.uat.fundflo.ai/v1/authentication"
+    ALLOWED_MIME_TYPES: image/jpeg,image/png,text/jpg,application/pdf,text/plain
+    MAX_FILE_SIZE: 10 # Max file size in MB
+    MAX_FILES: 10 # Max number of files
+    PRESIGNED_EXPIRY: 3600 # PRESIGNED EXPIRY 1 hr
+    
+  # IAM role statements
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - "s3:PutObject"
+        - "s3:GetObject"
+        - "s3:ListBucket"
+      Resource:
+        - arn:aws:s3:::${self:provider.environment.BUCKET_NAME}/*
+        - arn:aws:s3:::${self:provider.environment.BUCKET_NAME}
+    - Effect: "Allow"
+      Action:
+        - "lambda:InvokeFunction"
+      Resource: "*"
+    - Effect: "Allow"
+      Action:
+        - "logs:CreateLogGroup"
+        - "logs:CreateLogStream"
+        - "logs:PutLogEvents"
+      Resource: "arn:aws:logs:*:*:*"
+
+functions:
+  uploadFiles:
+    handler: handler.uploadFilesHandler
+    events:
+      - http:
+          path: upload
+          method: post
+          cors: true
+          binaryMediaTypes:
+                      - '*/*'  # To allow binary data upload (multipart/form-data)
+          request:
+            parameters:
+              headers:
+                Content-Type: true           
+  readFiles:
+    handler: handler.readFilesHandler
+    events:
+      - http:
+          path: read
+          method: get
+          cors: true
+
+resources:
+  Resources:
+    # Define your S3 bucket
+    MyS3Bucket:
+      Type: 'AWS::S3::Bucket'
+      Properties:
+        BucketName: ${self:provider.environment.BUCKET_NAME}
+
+plugins:
+  - serverless-offline
+
+custom:
+  serverless-offline:
+    httpPort: 3110
+    lambdaPort: 3111
