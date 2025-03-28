@@ -3,6 +3,10 @@ const AWS = require("aws-sdk");
 const { Readable, PassThrough } = require("stream");
 const Busboy = require("busboy");
 
+const { validateMimeType } = require("./validationMimeType");
+
+
+
 const s3 = new AWS.S3();
 const BUCKET_NAME = process.env.BUCKET_NAME;
 
@@ -36,18 +40,6 @@ exports.uploadFiles = async (event) => {
             ? Buffer.from(event.body, "base64")
             : Buffer.from(event.body);
 
-        // // Extract query parameters
-        // const queryParams = event.queryStringParameters || {};
-        // const requiredParams = ["moduleName", "enterpriseId", "folderName", "subFolderName", "subFolderName1"];
-        // for (const param of requiredParams) {
-        //     if (!queryParams[param]) {
-        //         return {
-        //             statusCode: 400,
-        //             body: JSON.stringify({ error: `Missing required query parameter: ${param}` }),
-        //         };
-        //     }
-        // }
-
         const uploadedFiles = [];
         const errorFiles = [];
         const fileUploadPromises = [];
@@ -55,9 +47,19 @@ exports.uploadFiles = async (event) => {
 
         return new Promise((resolve, reject) => {
 
-            busboyIns.on("file", (fieldname, file, filename, encoding, mimetype) => {
-                console.log(`Processing file: ${filename}`);
+            busboyIns.on("file", (fieldname, file, filedetails, encoding, mimetypes) => {
+                fileCount = fileCount + 1;
 
+                const {filename,mimeType} = filedetails;
+                const mimetype = mimeType;
+
+                console.log(`Processing file: ${filename}, mime: ${mimeType}, top_mimetypes: ${mimetypes}`);
+
+                if (!validateMimeType(mimetype)) {
+                    console.error(`❌ Invalid file type: ${mimetype} for file ${filename}`);
+                    errorFiles.push({ seqNo:fileCount, fileName:filename, error: `Invalid file type: ${mimetype}` });
+                    return file.resume(); // Stop processing this file
+                }
                 let fileSize = 0;
                 file.on("data", (data) => {
                     fileSize += data.length;
@@ -76,7 +78,7 @@ exports.uploadFiles = async (event) => {
                 });
 
                 // Count the number of files
-                fileCount++;
+                
                 if (fileCount > MAX_FILES) {
                     console.error(`Too many files. Maximum allowed is ${MAX_FILES}.`);
                     errorFiles.push({ filename, error: `Maximum ${MAX_FILES} files allowed` });
@@ -104,11 +106,12 @@ exports.uploadFiles = async (event) => {
                     .promise()
                     .then((data) => {
                         console.log("File uploaded:", data.Location);
-                        uploadedFiles.push({ seqNo:fileCount,filename, s3Path: data.Location });
+                        uploadedFiles.push({ seqNo:fileCount,fileName:filename, s3Path: data.Location });
                     })
                     .catch((err) => {
                         console.error(`Error uploading file (${filename}):`, err);
-                        errorFiles.push({ seqNo:fileCount, filename, error: err.message });
+                        errorFiles.push({ seqNo:fileCount, fileName:filename, error: err.message });
+
                     });
 
                 fileUploadPromises.push(uploadPromise);
