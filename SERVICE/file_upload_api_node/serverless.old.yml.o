@@ -34,17 +34,6 @@ provider:
         - "logs:PutLogEvents"
       Resource: "arn:aws:logs:*:*:*"
 
-# functions:
-#   uploadFiles:
-#     handler: handler.uploadFiles
-#     events:
-#       - http:
-#           path: upload
-#           method: post
-#           cors: true
-#           binaryMediaTypes:
-#             - '*/*'  # To allow binary data upload (multipart/form-data)
-
 functions:
   uploadFiles:
     handler: handler.uploadFiles
@@ -54,25 +43,19 @@ functions:
           method: post
           cors: true
           binaryMediaTypes:
-                      - '*/*'  # To allow binary data upload (multipart/form-data)
-          request:
-            parameters:
-              headers:
-                Content-Type: true           
-  uploadFiles1:
-    handler: handler.uploadFiles1
-    events:
-      - http:
-          path: upload1
-          method: post
-          cors: true
-          binaryMediaTypes:
             - '*/*'  # To allow binary data upload (multipart/form-data)
 
 resources:
   Resources:
-    # Define your S3 bucket
+    FileUploadBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:provider.environment.S3_BUCKET}
+
+resources:
+  Resources:
+    # You can define any additional AWS resources here
     MyS3Bucket:
       Type: 'AWS::S3::Bucket'
       Properties:
-        BucketName: ${self:provider.environment.BUCKET_NAME}
+        BucketName: ff-file-upload-services-ap-south-1
