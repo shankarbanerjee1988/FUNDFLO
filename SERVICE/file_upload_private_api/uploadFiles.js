@@ -11,9 +11,9 @@ const s3 = new AWS.S3();
 const BUCKET_NAME = process.env.BUCKET_NAME;
 
 // File size limit (10MB)
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const MAX_FILES = 10;
-const MIN_FILES = 1;
+const MAX_FILE_SIZE = process.env.MAX_FILE_SIZE * 1024 * 1024;
+const MAX_FILES = process.env.MAX_FILES || 10;
+const MIN_FILES = process.env.MIN_FILES || 1;
 
 // Convert buffer to stream
 const bufferToStream = (buffer) => {
@@ -55,11 +55,11 @@ exports.uploadFiles = async (event) => {
 
                 console.log(`Processing file: ${filename}, mime: ${mimeType}, top_mimetypes: ${mimetypes}`);
 
-                if (!validateMimeType(mimetype)) {
-                    console.error(`❌ Invalid file type: ${mimetype} for file ${filename}`);
-                    errorFiles.push({ seqNo:fileCount, fileName:filename, error: `Invalid file type: ${mimetype}` });
-                    return file.resume(); // Stop processing this file
-                }
+                // if (!validateMimeType(mimetype)) {
+                //     console.error(`❌ Invalid file type: ${mimetype} for file ${filename}`);
+                //     errorFiles.push({ seqNo:fileCount, fileName:filename, error: `Invalid file type: ${mimetype}` });
+                //     return file.resume(); // Stop processing this file
+                // }
                 let fileSize = 0;
                 file.on("data", (data) => {
                     fileSize += data.length;

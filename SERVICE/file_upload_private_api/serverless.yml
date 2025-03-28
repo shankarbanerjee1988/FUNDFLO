@@ -1,19 +1,20 @@
-service: ff-file-upload-services
+service: ff-private-file-upload-service
 
 provider:
   name: aws
   runtime: nodejs20.x
-  stage: dev
+  stage: prod
   region: ap-south-1
   memorySize: 256 # Adjust memory as needed
   timeout: 300 # Lambda function timeout for large file uploads
   environment:
-    BUCKET_NAME: ff-file-upload-services-ap-south-1
+    BUCKET_NAME: ff-private-file-upload-service-ap-south-1
     AUTH_SERVICE_URL: "https://ac-apis-dev.uat.fundflo.ai/v1/authentication"
     ALLOWED_MIME_TYPES: image/jpeg,image/png,text/jpg,application/pdf,text/plain
-    MAX_FILE_SIZE: 5 # Max file size in MB
+    MAX_FILE_SIZE: 10 # Max file size in MB
     MAX_FILES: 10 # Max number of files
-
+    PRESIGNED_EXPIRY: 3600 # PRESIGNED EXPIRY 1 hr
+    
   # IAM role statements
   iamRoleStatements:
     - Effect: "Allow"
@@ -34,17 +35,6 @@ provider:
         - "logs:CreateLogStream"
         - "logs:PutLogEvents"
       Resource: "arn:aws:logs:*:*:*"
-
-# functions:
-#   uploadFiles:
-#     handler: handler.uploadFiles
-#     events:
-#       - http:
-#           path: upload
-#           method: post
-#           cors: true
-#           binaryMediaTypes:
-#             - '*/*'  # To allow binary data upload (multipart/form-data)
 
 functions:
   uploadFiles:
