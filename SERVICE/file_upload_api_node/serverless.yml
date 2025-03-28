@@ -47,7 +47,7 @@ provider:
 
 functions:
   uploadFiles:
-    handler: handler.uploadFiles
+    handler: handler.uploadFilesHandler
     events:
       - http:
           path: upload
@@ -59,15 +59,13 @@ functions:
             parameters:
               headers:
                 Content-Type: true           
-  uploadFiles1:
-    handler: handler.uploadFiles1
+  readFiles:
+    handler: handler.readFilesHandler
     events:
       - http:
-          path: upload1
-          method: post
+          path: read
+          method: get
           cors: true
-          binaryMediaTypes:
-            - '*/*'  # To allow binary data upload (multipart/form-data)
 
 resources:
   Resources:
@@ -76,3 +74,11 @@ resources:
       Type: 'AWS::S3::Bucket'
       Properties:
         BucketName: ${self:provider.environment.BUCKET_NAME}
+
+plugins:
+  - serverless-offline
+
+custom:
+  serverless-offline:
+    httpPort: 3110
+    lambdaPort: 3111
