@@ -8,13 +8,14 @@ provider:
   memorySize: 256
   timeout: 300
   environment:
-    BUCKET_NAME: ff-private-file-upload-service-ap-south-1
+    BUCKET_NAME: ff-public-file-upload-service1-ap-south-1
     AUTH_SERVICE_URL: "https://ac-apis-dev.uat.fundflo.ai/v1/authentication"
     ALLOWED_MIME_TYPES: image/jpeg,image/png,text/jpg,application/pdf,text/plain
-    MAX_FILE_SIZE: 10 # Max file size in MB
-    MAX_FILES: 10 # Max number of files
-    PRESIGNED_EXPIRY: 3600 # PRESIGNED EXPIRY 1 hr
+    MAX_FILE_SIZE: 10
+    MAX_FILES: 10
+    PRESIGNED_EXPIRY: 172800  # 2 days (48 hours)
 
+  # IAM Permissions
   iamRoleStatements:
     - Effect: "Allow"
       Action:
@@ -34,36 +35,55 @@ functions:
           method: post
           cors: true
           binaryMediaTypes:
-            - '*/*'
-  readFiles:
-    handler: handler.readFilesHandler
-    events:
-      - http:
-          path: read
-          method: get
-          cors: true
+            - "*/*"
+          request:
+            parameters:
+              headers:
+                Content-Type: true
+  # readFiles:
+  #   handler: handler.readFilesHandler
+  #   events:
+  #     - http:
+  #         path: read
+  #         method: get
+  #         cors: true
 
 resources:
   Resources:
     MyS3Bucket:
-      Type: "AWS::S3::Bucket"
+      Type: AWS::S3::Bucket
       Properties:
         BucketName: ${self:provider.environment.BUCKET_NAME}
+        OwnershipControls:
+          Rules:
+            - ObjectOwnership: BucketOwnerEnforced
         PublicAccessBlockConfiguration:
-          BlockPublicAcls: false
-          IgnorePublicAcls: false
+          BlockPublicAcls: true
+          IgnorePublicAcls: true
           BlockPublicPolicy: false
           RestrictPublicBuckets: false
+
     MyS3BucketPolicy:
-      Type: "AWS::S3::BucketPolicy"
+      Type: AWS::S3::BucketPolicy
       Properties:
         Bucket: ${self:provider.environment.BUCKET_NAME}
         PolicyDocument:
           Statement:
-            - Effect: "Allow"
+            - Effect: Allow
               Principal: "*"
               Action: "s3:GetObject"
               Resource: "arn:aws:s3:::${self:provider.environment.BUCKET_NAME}/*"
+              Condition:
+                IpAddress:
+                  "aws:SourceIp": 
+                    - "13.232.13.120"   # ✅ Replace with allowed IP range 1
+                    #- "0.0.0.0/32" # ✅ Replace with allowed IP 2
+                StringLike:
+                  "aws:Referer":
+                    - "https://ar.dev.fundflo.ai*"           # ✅ Allowed subdomain
+                    - "https://ar.qa.fundflo.ai*"  # ✅ Allowed domain 2
+                    - "https://ar.demo.fundflo.ai*"           # ✅ Allowed subdomain
+                    - "https://ar.fundflo.ai*"   # ✅ Allowed domain 1
 
 plugins:
   - serverless-offline
