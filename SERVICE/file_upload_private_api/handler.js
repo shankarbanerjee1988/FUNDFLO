@@ -30,9 +30,11 @@ exports.uploadFilesHandler = async (event) => {
     const authError = await authenticateRequest(event);
     if (authError) return authError;
 
-    const sourceSystemDetails = sourceSystemInfo(event);
-
-    console.log("sourceSystemDetails....",sourceSystemDetails);
+    try {
+        const sourceSystemDetails = sourceSystemInfo(event);
+    }catch (error) {
+        console.error("Failed to fetch sourceSystemDetails:", error.message);
+    }
 
     console.log("EnterpriseId....",event.eventEnterpriseId);
 
