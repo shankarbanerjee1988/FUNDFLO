@@ -2,11 +2,11 @@ require("dotenv").config();
 const axios = require("axios");
 
 
-exports.callbackRequest = async (event,callbackData,callURL) => {
+exports.processCallback = async (event,callbackData,callURL) => {
+    console.error("callbackData......",callbackData);
     if (!callURL) {
-        console.error("CALLBACK_URL is not Present");
-    }else{
-        return callbackData;
+        console.error("CALLBACK_URL is not present");
+        return callbackData; // This stops further execution inside the function
     }
 
     const rawAuthToken = event.headers?.Authorization?.trim();

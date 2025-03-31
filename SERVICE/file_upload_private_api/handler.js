@@ -4,8 +4,8 @@ const AWS = require("aws-sdk");
 const { authenticateRequest } = require("./authenticate");
 const { uploadFiles } = require("./uploadFiles");
 const { readFiles } = require("./readFiles");
-const { callbackRequest } = require("./callback");
-const requiredParams = ["moduleName", "enterpriseId", "folderName"];
+const { processCallback } = require("./callback");
+const requiredParams = ["moduleName",  "folderName"];
 
 // ✅ Validate required query parameters
 const validateQueryParams = (queryParams) => {
@@ -26,6 +26,8 @@ exports.uploadFilesHandler = async (event) => {
     const authError = await authenticateRequest(event);
     if (authError) return authError;
 
+    console.log("EnterpriseId....",event.eventEnterpriseId);
+
     // 🔹 Query Parameter Validation
     const queryParams = event.queryStringParameters || {};
     const validationError = validateQueryParams(queryParams);
@@ -38,16 +40,16 @@ exports.uploadFilesHandler = async (event) => {
 
     const formattedDate = `${day}${month}${year}`;
 
-    let s3BucketFolder = `${queryParams.moduleName}/${queryParams.enterpriseId}/${formattedDate}/${queryParams.folderName}`;
+    let s3BucketFolder = `${queryParams.moduleName}/${event.eventEnterpriseId}/${formattedDate}/${queryParams.folderName}`;
     s3BucketFolder = s3BucketFolder + (queryParams.subFolderName ? `/${queryParams.subFolderName}` : ``);  
     s3BucketFolder = s3BucketFolder + (queryParams.subFolderName1 ? `/${queryParams.subFolderName1}` : ``);  
     const callURL = (queryParams.callURL ? `/${queryParams.callURL}` : ``);  
 
     console.log("s3BucketFolder....",s3BucketFolder);
     const callBackData = await uploadFiles(event,s3BucketFolder);
-    console.log("CALLBACK DATA....",callBackData);
+    console.log("UPLOADED DATA....",callBackData);
 
-    return callbackRequest(event,callBackData,callURL); // 🔹 Ensure the function returns a response
+    return processCallback(event,callBackData,callURL); // 🔹 Ensure the function returns a response
 };
 
 // ✅ Lambda Handler for Reading Files
