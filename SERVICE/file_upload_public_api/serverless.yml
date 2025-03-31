@@ -1,4 +1,4 @@
-service: ff-public-file-upload-service1
+service: ff-public-file-upload-service
 
 provider:
   name: aws
@@ -8,7 +8,7 @@ provider:
   memorySize: 256
   timeout: 300
   environment:
-    BUCKET_NAME: ff-private-file-upload-service-ap-south-1
+    BUCKET_NAME: ff-public-file-upload-service-ap-south-1
     AUTH_SERVICE_URL: "https://ac-apis-dev.uat.fundflo.ai/v1/authentication"
     ALLOWED_MIME_TYPES: image/jpeg,image/png,text/jpg,application/pdf,text/plain
     MAX_FILE_SIZE: 10 # Max file size in MB

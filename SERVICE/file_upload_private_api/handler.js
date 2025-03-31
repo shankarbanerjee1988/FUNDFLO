@@ -1,10 +1,14 @@
 require("dotenv").config();
 const AWS = require("aws-sdk");
+const axios = require("axios");
 
 const { authenticateRequest } = require("./authenticate");
 const { uploadFiles } = require("./uploadFiles");
 const { readFiles } = require("./readFiles");
 const { processCallback } = require("./callback");
+const { sourceSystemInfo } = require("./geolocation");
+
+
 const requiredParams = ["moduleName",  "folderName"];
 
 // ✅ Validate required query parameters
@@ -25,6 +29,10 @@ exports.uploadFilesHandler = async (event) => {
     // 🔹 Authentication Check
     const authError = await authenticateRequest(event);
     if (authError) return authError;
+
+    const sourceSystemDetails = sourceSystemInfo(event);
+
+    console.log("sourceSystemDetails....",sourceSystemDetails);
 
     console.log("EnterpriseId....",event.eventEnterpriseId);
 
