@@ -23,7 +23,7 @@ const bufferToStream = (buffer) => {
     return stream;
 };
 
-exports.uploadFiles = async (event) => {
+exports.uploadFiles = async (event,s3BucketFolder) => {
     try {
         const contentType = event.headers?.["content-type"] || event.headers?.["Content-Type"];
 
@@ -84,14 +84,13 @@ exports.uploadFiles = async (event) => {
                     errorFiles.push({ filename, error: `Maximum ${MAX_FILES} files allowed` });
                     return;
                 }
-                const date = new Date();
-                const day = String(date.getDate()).padStart(2, '0');
-                const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-based
-                const year = date.getFullYear();
+                // const date = new Date();
+                // const day = String(date.getDate()).padStart(2, '0');
+                // const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-based
+                // const year = date.getFullYear();
 
-                const formattedDate = `${day}${month}${year}`;
-                
-                const s3Key = `${event.queryStringParameters.moduleName}/${event.queryStringParameters.enterpriseId}/${formattedDate}/${event.queryStringParameters.folderName}/${event.queryStringParameters.subFolderName}/${event.queryStringParameters.subFolderName1}/${filename}`;
+                // const formattedDate = `${day}${month}${year}`;
+                s3Key = s3BucketFolder + `/${filename}`;
 
                 const passThrough = new PassThrough();
                 file.pipe(passThrough);
@@ -132,7 +131,7 @@ exports.uploadFiles = async (event) => {
                 resolve({
                     statusCode: 200,
                     body: JSON.stringify({
-                        message: "✅ File processing completed",
+                        message: "File processing completed",
                         uploadedFiles,
                         errorFiles,
                     }),

@@ -4,9 +4,11 @@ const AWS = require("aws-sdk");
 const { authenticateRequest } = require("./authenticate");
 const { uploadFiles } = require("./uploadFiles");
 const { readFiles } = require("./readFiles");
+const { callbackRequest } = require("./callback");
+const requiredParams = ["moduleName", "enterpriseId", "folderName"];
 
 // ✅ Validate required query parameters
-const validateQueryParams = (queryParams, requiredParams) => {
+const validateQueryParams = (queryParams) => {
     const errors = [];
     for (const param of requiredParams) {
         if (!queryParams[param] || typeof queryParams[param] !== "string" || queryParams[param].trim() === "") {
@@ -25,12 +27,27 @@ exports.uploadFilesHandler = async (event) => {
     if (authError) return authError;
 
     // 🔹 Query Parameter Validation
-    const requiredParams = ["moduleName", "enterpriseId", "folderName", "subFolderName", "subFolderName1"];
     const queryParams = event.queryStringParameters || {};
-    const validationError = validateQueryParams(queryParams, requiredParams);
+    const validationError = validateQueryParams(queryParams);
     if (validationError) return validationError;
 
-    return await uploadFiles(event); // 🔹 Ensure the function returns a response
+    const date = new Date();
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-based
+    const year = date.getFullYear();
+
+    const formattedDate = `${day}${month}${year}`;
+
+    let s3BucketFolder = `${queryParams.moduleName}/${queryParams.enterpriseId}/${formattedDate}/${queryParams.folderName}`;
+    s3BucketFolder = s3BucketFolder + (queryParams.subFolderName ? `/${queryParams.subFolderName}` : ``);  
+    s3BucketFolder = s3BucketFolder + (queryParams.subFolderName1 ? `/${queryParams.subFolderName1}` : ``);  
+    const callURL = (queryParams.callURL ? `/${queryParams.callURL}` : ``);  
+
+    console.log("s3BucketFolder....",s3BucketFolder);
+    const callBackData = await uploadFiles(event,s3BucketFolder);
+    console.log("CALLBACK DATA....",callBackData);
+
+    return callbackRequest(event,callBackData,callURL); // 🔹 Ensure the function returns a response
 };
 
 // ✅ Lambda Handler for Reading Files
