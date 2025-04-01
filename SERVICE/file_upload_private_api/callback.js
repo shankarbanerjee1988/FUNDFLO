@@ -9,14 +9,12 @@ exports.processCallback = async (event,callbackData,callURL) => {
         console.error("ProcessCallback CALLBACK_URL is not present");
         return callbackData; // This stops further execution inside the function
     }
-    callURL = `https://${callURL}`
-
     const rawAuthToken = event.headers?.Authorization?.trim();
     if (!rawAuthToken) {
         console.warn("Unauthorized request: No auth token provided");
         return { statusCode: 401, body: JSON.stringify({ error: "Unauthorized" }) };
     }
-
+    callbackData.callURL = callURL;
     const authToken = rawAuthToken.startsWith("Bearer ") ? rawAuthToken : `Bearer ${rawAuthToken}`;
 
     try {

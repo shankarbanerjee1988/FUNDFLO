@@ -53,7 +53,7 @@ exports.uploadFilesHandler = async (event) => {
     let s3BucketFolder = `${queryParams.moduleName}/${event.eventEnterpriseId}/${formattedDate}/${queryParams.folderName}`;
     s3BucketFolder = s3BucketFolder + (queryParams.subFolderName ? `/${queryParams.subFolderName}` : ``);  
     s3BucketFolder = s3BucketFolder + (queryParams.subFolderName1 ? `/${queryParams.subFolderName1}` : ``);  
-    const callURL = (queryParams.callURL ? `/${queryParams.callURL}` : ``);  
+    const callURL = (queryParams.callURL ? `${queryParams.callURL}` : ``);  
 
     console.log("s3BucketFolder....",s3BucketFolder);
     const callBackData = await uploadFiles(event,s3BucketFolder);

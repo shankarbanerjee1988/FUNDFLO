@@ -24,6 +24,6 @@ exports.sourceSystemInfo = async (event) => {
             } catch (error) {
                 console.error("Failed to fetch location:", error.message);
             }
-    console.log("SourceSystemDetails....",sourceSystemDetails);
+    console.log("SourceSystemDetails....",sourceSystem);
     return sourceSystem;
  };

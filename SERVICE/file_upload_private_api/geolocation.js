@@ -12,7 +12,7 @@ exports.sourceSystemInfo = async (event) => {
                                         event.headers["X-Forwarded-For"]?.split(",")[0] || 
                                         "Unknown";
     //Get Domain Name
-     sourceSystem.domain = event.headers["Host"] || "Unknown";
+    sourceSystem.domain = event.headers["Host"] || "Unknown";
     //Fetch Geolocation (Country & Region) from IP
     let country = "Unknown", region = "Unknown";
             try {
@@ -24,6 +24,6 @@ exports.sourceSystemInfo = async (event) => {
             } catch (error) {
                 console.error("Failed to fetch location:", error.message);
             }
-    console.log("SourceSystemDetails....",sourceSystemDetails);
+    console.log("SourceSystemDetails....",sourceSystem);
     return sourceSystem;
  };

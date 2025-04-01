@@ -3,22 +3,22 @@ const axios = require("axios");
 
 
 exports.processCallback = async (event,callbackData,callURL) => {
-    console.error("callbackData......",callbackData);
+    console.info("ProcessCallback DATA......",callbackData);
+    console.info("ProcessCallback URL......",callURL);
     if (!callURL) {
-        console.error("CALLBACK_URL is not present");
+        console.error("ProcessCallback CALLBACK_URL is not present");
         return callbackData; // This stops further execution inside the function
     }
-
     const rawAuthToken = event.headers?.Authorization?.trim();
     if (!rawAuthToken) {
         console.warn("Unauthorized request: No auth token provided");
         return { statusCode: 401, body: JSON.stringify({ error: "Unauthorized" }) };
     }
-
+    callbackData.callURL = callURL;
     const authToken = rawAuthToken.startsWith("Bearer ") ? rawAuthToken : `Bearer ${rawAuthToken}`;
 
     try {
-            console.log("INSIDE CallbackRequest.......");
+            console.log("INSIDE ProcessCallback.......");
             axios.post(callURL, callbackData, {
                 headers: {
                     Authorization: authToken,
@@ -26,21 +26,21 @@ exports.processCallback = async (event,callbackData,callURL) => {
                 }
             })
             .then(response => {
-                console.log("CallbackRequest Response SUCCESS.......", response.data);
+                console.log("ProcessCallback Response SUCCESS.......", response.data);
             })
             .catch(error => {
                 if (error.response) {
-                    console.error("CallbackRequest Response ERROR.......", error.response.data);
+                    console.error("ProcessCallback Response ERROR.......", error.response.data);
                 } else if (error.request) {
-                    console.error("CallbackRequest Response ERROR....... No response received", error.request);
+                    console.error("ProcessCallback Response ERROR....... No response received", error.request);
                 } else {
-                    console.error("CallbackRequest Response ERROR.......", error.message);
+                    console.error("ProcessCallback Response ERROR.......", error.message);
                 }
             });
         
     } catch (error) {
-        console.error("Authentication failed:", error.response?.data || error.message);
-        return { statusCode: 403, body: JSON.stringify({ error: "Invalid token" }) };
+        console.error("ProcessCallback Authentication failed:", error.response?.data || error.message);
+        return { statusCode: 403, body: JSON.stringify({ error: "ProcessCallback Invalid token" }) };
     }
     return callbackData;
 };
