@@ -14,7 +14,7 @@ exports.processCallback = async (event,callbackData,callURL) => {
         console.warn("Unauthorized request: No auth token provided");
         return { statusCode: 401, body: JSON.stringify({ error: "Unauthorized" }) };
     }
-    callbackData.callURL = callURL;
+    callbackData['callURL'] = callURL;
     const authToken = rawAuthToken.startsWith("Bearer ") ? rawAuthToken : `Bearer ${rawAuthToken}`;
 
     try {
