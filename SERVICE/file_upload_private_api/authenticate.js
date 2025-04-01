@@ -32,6 +32,7 @@ exports.authenticateRequest = async (event) => {
         console.log("Authentication successful");
         console.log("USER INFO....",userInfo);
         event.eventEnterpriseId = eventEnterpriseId;
+        event.userInfo = userInfo;
         return null;
     } catch (error) {
         console.error("Authentication failed:", error.response?.data || error.message);

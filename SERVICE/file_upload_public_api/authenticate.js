@@ -19,8 +19,20 @@ exports.authenticateRequest = async (event) => {
 
     try {
         console.log("Verifying token with Auth Service...");
-        await axios.get(AUTH_SERVICE_URL, { headers: { Authorization: authToken } });
+        let userInfo = await axios.get(AUTH_SERVICE_URL, { headers: { Authorization: authToken } });
+        userInfo = userInfo?.data?.data;
+        eventEnterpriseId = 0;
+        if(userInfo && userInfo.enterpriseId){
+            eventEnterpriseId = userInfo.enterpriseId;
+        }else if(userInfo && userInfo.enterpriseCode){
+            eventEnterpriseId = userInfo.enterpriseCode;
+        }else if(userInfo && userInfo.enterpriseUuid){
+            eventEnterpriseId = userInfo.enterpriseUuid;
+        }
         console.log("Authentication successful");
+        console.log("USER INFO....",userInfo);
+        event.eventEnterpriseId = eventEnterpriseId;
+        event.userInfo = userInfo;
         return null;
     } catch (error) {
         console.error("Authentication failed:", error.response?.data || error.message);

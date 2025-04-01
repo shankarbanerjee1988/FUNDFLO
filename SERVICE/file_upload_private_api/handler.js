@@ -8,8 +8,7 @@ const { readFiles } = require("./readFiles");
 const { processCallback } = require("./callback");
 const { sourceSystemInfo } = require("./geolocation");
 
-
-const requiredParams = ["moduleName",  "folderName"];
+const requiredParams = ["moduleName", "folderName"];
 
 // ✅ Validate required query parameters
 const validateQueryParams = (queryParams) => {
@@ -19,7 +18,9 @@ const validateQueryParams = (queryParams) => {
             errors.push(`${param} is required and must be a non-empty string`);
         }
     }
-    return errors.length > 0 ? { statusCode: 400, body: JSON.stringify({ error: "Invalid query parameters", details: errors }) } : null;
+    return errors.length > 0 
+        ? { statusCode: 400, body: JSON.stringify({ error: "Invalid query parameters", details: errors }) } 
+        : null;
 };
 
 // ✅ Lambda Handler for File Upload with Busboy
@@ -30,13 +31,14 @@ exports.uploadFilesHandler = async (event) => {
     const authError = await authenticateRequest(event);
     if (authError) return authError;
 
+    let sourceSystemDetails = {};
     try {
-        const sourceSystemDetails = sourceSystemInfo(event);
-    }catch (error) {
+        sourceSystemDetails = await sourceSystemInfo(event);
+    } catch (error) {
         console.error("Failed to fetch sourceSystemDetails:", error.message);
     }
 
-    console.log("EnterpriseId....",event.eventEnterpriseId);
+    console.log("EnterpriseId....", event.eventEnterpriseId);
 
     // 🔹 Query Parameter Validation
     const queryParams = event.queryStringParameters || {};
@@ -44,22 +46,42 @@ exports.uploadFilesHandler = async (event) => {
     if (validationError) return validationError;
 
     const date = new Date();
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-based
-    const year = date.getFullYear();
-
-    const formattedDate = `${day}${month}${year}`;
+    const formattedDate = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
 
     let s3BucketFolder = `${queryParams.moduleName}/${event.eventEnterpriseId}/${formattedDate}/${queryParams.folderName}`;
-    s3BucketFolder = s3BucketFolder + (queryParams.subFolderName ? `/${queryParams.subFolderName}` : ``);  
-    s3BucketFolder = s3BucketFolder + (queryParams.subFolderName1 ? `/${queryParams.subFolderName1}` : ``);  
-    const callURL = (queryParams.callURL ? `${queryParams.callURL}` : ``);  
+    if (queryParams.subFolderName) s3BucketFolder += `/${queryParams.subFolderName}`;
+    if (queryParams.subFolderName1) s3BucketFolder += `/${queryParams.subFolderName1}`;
 
-    console.log("s3BucketFolder....",s3BucketFolder);
-    const callBackData = await uploadFiles(event,s3BucketFolder);
-    console.log("UPLOADED DATA....",callBackData);
+    const callURL = queryParams.callURL ? queryParams.callURL : null;
 
-    return processCallback(event,callBackData,callURL); // 🔹 Ensure the function returns a response
+    console.log("s3BucketFolder....", s3BucketFolder);
+
+    // 🔹 Upload Files to S3
+    const uploadInfo = await uploadFiles(event, s3BucketFolder);
+    console.log("UPLOADED DATA....", uploadInfo);
+
+    let callBackData = {
+        statusCode: uploadInfo?.statusCode,
+        body: {
+            uploadedBody: (uploadInfo && uploadInfo.body ? JSON.parse(uploadInfo?.body) : {}),
+            userInfo: event.userInfo,
+            sourceSystemDetails: sourceSystemDetails,
+            queryParams: queryParams,
+            callURL:callURL
+        },
+    };
+
+    if (callURL) {
+        console.log("Triggering callback URL...");
+        const callbackResponse = await processCallback(event, callBackData, callURL);
+        callBackData.body.callBackResp = callbackResponse;
+    }
+
+    return {
+        statusCode: callBackData.statusCode || 200,
+        body: JSON.stringify(callBackData.body),
+        headers: { "Content-Type": "application/json" },
+    };
 };
 
 // ✅ Lambda Handler for Reading Files
