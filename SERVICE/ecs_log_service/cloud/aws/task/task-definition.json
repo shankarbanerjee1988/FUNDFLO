@@ -1,0 +1,71 @@
+{
+  "family": "FUND-%API_ENV%-%MODULE_NAME%-TaskDefinition",
+  "containerDefinitions": [
+    {
+      "name": "FUND-%API_ENV%-%MODULE_NAME%",
+      "image": "%DOCKER_IMAGE_URL%/%REPO_NAME%:%BUILD_TAG%",
+      "cpu": 0,
+      "memoryReservation": 300,
+      "portMappings": [
+        {
+          "containerPort": 8110,
+          "hostPort": 8110,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "environment": [],
+      "mountPoints": [],
+      "volumesFrom": [],
+      "secrets": [
+        {
+          "name": "DB_HOST",
+          "valueFrom": "%DB_HOST%"
+        },
+        {
+          "name": "DB_PORT",
+          "valueFrom": "%DB_PORT%"
+        },
+        {
+          "name": "DB_USER",
+          "valueFrom": "%DB_USER%"
+        },
+        {
+          "name": "DB_PASS",
+          "valueFrom": "%DB_PASS%"
+        },
+        {
+          "name": "DB_NAME",
+          "valueFrom": "%DB_NAME%"
+        },
+        {
+          "name": "NODE_ENV",
+          "valueFrom": "%NODE_ENV%"
+        },
+        {
+          "name": "PORT",
+          "valueFrom": "%PORT%"
+        },
+        {
+          "name": "JWT_PUBLIC_KEY",
+          "valueFrom": "%JWT_PUBLIC_KEY%"
+        }
+      ],
+      "dockerLabels": {},
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/FUND-%API_ENV%-%MODULE_NAME%TaskDefinition",
+          "awslogs-region": "%CLOUD_REGION%",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ],
+  "taskRoleArn": "arn:aws:iam::%AWS_ACCOUNT_ID%:role/FUND-%CLOUD_ENV%-ECS-TaskRole",
+  "executionRoleArn": "arn:aws:iam::%AWS_ACCOUNT_ID%:role/FUND-%CLOUD_ENV%-ECS-ExecutionRole",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512"
+}
