@@ -9,6 +9,7 @@ exports.processCallback = async (event,callbackData,callURL) => {
         console.error("ProcessCallback CALLBACK_URL is not present");
         return callbackData; // This stops further execution inside the function
     }
+    callURL = `https://${callURL}`
 
     const rawAuthToken = event.headers?.Authorization?.trim();
     if (!rawAuthToken) {
