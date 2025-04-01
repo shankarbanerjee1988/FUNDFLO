@@ -11,8 +11,8 @@ provider:
     BUCKET_NAME: ff-public-file-upload-service-ap-south-1
     AUTH_SERVICE_URL: "https://ac-apis-dev.uat.fundflo.ai/v1/authentication"
     ALLOWED_MIME_TYPES: image/jpeg,image/png,text/jpg,application/pdf,text/plain
-    MAX_FILE_SIZE: 12 # Max file size in MB
-    MAX_FILES: 10 # Max number of files
+    MAX_FILE_SIZE: 27 # Max file size in MB
+    MAX_FILES: 5 # Max number of files
     PRESIGNED_EXPIRY: 3600 # PRESIGNED EXPIRY 1 hr
 
   iamRoleStatements:
@@ -35,6 +35,7 @@ functions:
           cors: true
           binaryMediaTypes:
             - '*/*'
+          payload: '2.0' 
   readFiles:
     handler: handler.readFilesHandler
     events:
