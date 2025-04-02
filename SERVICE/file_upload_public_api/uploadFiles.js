@@ -3,16 +3,26 @@ const AWS = require("aws-sdk");
 const { Readable, PassThrough } = require("stream");
 const Busboy = require("busboy");
 
-const { validateMimeType } = require("./validationMimeType");
-
-
+const ALLOWED_MIME_TYPES = [
+    "text/plain",  // .txt
+    "application/pdf",  // .pdf
+    "application/msword",  // .doc
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  // .docx
+    "image/jpeg",  // .jpg, .jpeg
+    "image/png",  // .png
+    "message/rfc822",  // .eml
+    "application/x-iso9660-image"  // .iso
+  ];
+  
+  // Updated regex to match allowed file extensions
+const ALLOWED_FILE_NAME_REGEX = /^[a-zA-Z0-9_-]+\.(txt|pdf|doc|docx|jpg|jpeg|png|eml|iso)$/;
 
 const s3 = new AWS.S3();
 const BUCKET_NAME = process.env.BUCKET_NAME;
 
 // File size limit (10MB)
 const MAX_FILE_SIZE = process.env.MAX_FILE_SIZE * 1024 * 1024;
-const MAX_FILES = process.env.MAX_FILES || 10;
+const MAX_FILES = process.env.MAX_FILES || 5;
 const MIN_FILES = process.env.MIN_FILES || 1;
 
 // Convert buffer to stream
@@ -55,11 +65,17 @@ exports.uploadFiles = async (event,s3BucketFolder) => {
 
                 console.log(`Processing file: ${filename}, mime: ${mimeType}, top_mimetypes: ${mimetypes}`);
 
-                // if (!validateMimeType(mimetype)) {
-                //     console.error(`❌ Invalid file type: ${mimetype} for file ${filename}`);
-                //     errorFiles.push({ seqNo:fileCount, fileName:filename, error: `Invalid file type: ${mimetype}` });
-                //     return file.resume(); // Stop processing this file
-                // }
+                if (!filename.match(ALLOWED_FILE_NAME_REGEX)) {
+                    errorFiles.push({ seqNo:fileCount, fileName:filename, error: `Invalid filename. Allowed extensions: .txt, .pdf, .doc, .docx, .jpg, .jpeg, .png, .eml, .iso.` });
+                    return file.resume();                    
+                  }
+            
+                  // Check if filetype is allowed (must match the MIME types)
+                  if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
+                    errorFiles.push({ seqNo:fileCount, fileName:filename, error: `Invalid MIME type for file. Allowed types: text/plain, application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document, image/jpeg, image/png, message/rfc822, application/x-iso9660-image.` });
+                    return file.resume(); 
+                  }                
+
                 let fileSize = 0;
                 file.on("data", (data) => {
                     fileSize += data.length;
