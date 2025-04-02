@@ -1,0 +1,44 @@
+service: csv-processing
+
+provider:
+  name: aws
+  runtime: python3.9
+  memorySize: 512
+  timeout: 30
+  environment:
+    SOURCE_BUCKET: your-source-bucket
+    ERROR_BUCKET: your-error-bucket
+
+functions:
+  uploadFile:
+    handler: handlers.api_handler.upload_handler
+    events:
+      - http:
+          path: upload
+          method: post
+          cors: true
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - s3:PutObject
+        Resource: arn:aws:s3:::your-source-bucket/*
+
+  processFile:
+    handler: handlers.lambda_handler.lambda_handler
+    events:
+      - s3:
+          bucket: your-source-bucket
+          event: s3:ObjectCreated:*
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - s3:GetObject
+          - s3:PutObject
+        Resource: arn:aws:s3:::your-source-bucket/*
+      - Effect: Allow
+        Action:
+          - sns:Publish
+        Resource: "*"
+
+plugins:
+  - serverless-python-requirements

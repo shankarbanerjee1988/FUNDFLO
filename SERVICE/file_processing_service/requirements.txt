@@ -1,1 +1,7 @@
-# Placeholder for requirements.txt
+boto3==1.28.57      # AWS SDK for Python (S3, SNS)
+pandas==2.0.3       # Data processing
+pyarrow==14.0.1     # Parquet file support
+PyPDF2==3.0.1       # PDF text extraction
+psycopg2-binary==2.9.7  # PostgreSQL database connection
+sqlalchemy==2.0.20   # ORM for PostgreSQL
+serverless-python-requirements  # Serverless deployment support
