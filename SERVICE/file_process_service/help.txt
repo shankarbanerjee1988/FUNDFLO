@@ -1,0 +1,7 @@
+aws-lambda-file-transform/
+│── handler.js               # Lambda function (Node.js)
+│── serverless.yml           # Deployment configuration
+│── package.json             # Dependencies
+│── .env                     # SMTP credentials
+│── deploy.sh                # Deployment script
+└── node_modules/            # Dependencies (after install)

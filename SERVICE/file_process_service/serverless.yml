@@ -1,0 +1,36 @@
+service: file-transform-api
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
+  memorySize: 512
+  timeout: 30
+  environment:
+    BUCKET_NAME: your-s3-bucket
+    AUTH_API_URL: https://your-auth-api.com/validate
+    SNS_TOPIC_ARN: arn:aws:sns:us-east-1:123456789012:TransformFailureTopic
+    SMTP_HOST: smtp.example.com
+    SMTP_PORT: 587
+    SMTP_USER: your-email@example.com
+    SMTP_PASS: your-password
+    ERROR_EMAIL: recipient@example.com
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - "s3:GetObject"
+        - "s3:PutObject"
+      Resource: "arn:aws:s3:::your-s3-bucket/*"
+    - Effect: "Allow"
+      Action:
+        - "sns:Publish"
+      Resource: "arn:aws:sns:us-east-1:123456789012:TransformFailureTopic"
+
+functions:
+  transformFile:
+    handler: handler.transformFile
+    events:
+      - http:
+          path: transform
+          method: post
+          cors: true
