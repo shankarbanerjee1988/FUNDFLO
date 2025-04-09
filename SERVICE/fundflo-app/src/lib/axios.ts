@@ -1,36 +1,14 @@
 import axios from 'axios';
+import { getToken } from './token';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://api.example.com';
-
-export const axiosInstance = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || 'https://api.example.com',
 });
 
-// Add request interceptor to include auth token
-axiosInstance.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+api.interceptors.request.use((config) => {
+  const token = getToken();
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
 
-// Add response interceptor to handle common errors
-axiosInstance.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    // Handle 401 Unauthorized errors
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      // Redirect to login if needed
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
+export default api;
