@@ -1,0 +1,509 @@
+service: ff-pdf-generator
+
+frameworkVersion: '4'
+
+provider:
+  name: aws
+  runtime: nodejs22.x
+  region: ap-south-1
+  logRetentionInDays: 30
+  
+  # Enable X-Ray tracing
+  tracing:
+    apiGateway: true
+    lambda: true
+    
+  apiGateway:
+    minimumCompressionSize: 1024
+    binaryMediaTypes:
+      - 'application/pdf'
+      - '*/*'
+    
+  environment:
+    BUCKET_NAME: ff-pdf-generator-bucket-${sls:stage}-${aws:region}
+    NODE_OPTIONS: '--max-old-space-size=2048 --expose-gc'
+    STAGE: ${sls:stage}
+    LOG_LEVEL: ${param:logLevel, 'info'}
+    BROWSER_POOL_SIZE: ${param:browserPoolSize, '2'}
+    BROWSER_TIMEOUT: ${param:browserTimeout, '45000'}
+    PDF_GENERATION_QUEUE_URL: !Ref PdfGenerationQueue
+    
+  # IAM role statements
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - s3:PutObject
+        - s3:GetObject
+      Resource:
+        - arn:aws:s3:::${self:provider.environment.BUCKET_NAME}/*
+    - Effect: Allow
+      Action:
+        - logs:CreateLogGroup
+        - logs:CreateLogStream
+        - logs:PutLogEvents
+        - logs:DescribeLogGroups
+      Resource: "arn:aws:logs:*:*:*"
+    - Effect: Allow
+      Action:
+        - xray:PutTraceSegments
+        - xray:PutTelemetryRecords
+      Resource: "*"
+    - Effect: Allow
+      Action:
+        - cloudwatch:PutMetricData
+      Resource: "*"
+    - Effect: Allow
+      Action:
+        - sqs:SendMessage
+        - sqs:ReceiveMessage
+        - sqs:DeleteMessage
+        - sqs:GetQueueAttributes
+      Resource:
+        - !GetAtt PdfGenerationQueue.Arn
+        - !GetAtt PdfGenerationDLQ.Arn
+
+functions:
+  # Standard PDF generator (default tier)
+  generatePdf:
+    handler: handler.generatePdf
+    description: "Generates PDF documents using headless Chrome"
+    timeout: 60
+    memorySize: 2048
+    events:
+      - http:
+          path: generate-pdf
+          method: post
+          cors: true
+          contentHandling: CONVERT_TO_BINARY
+    tags:
+      Service: PDFGenerator
+      Tier: Standard
+      Environment: ${sls:stage}
+    layers:
+      - arn:aws:lambda:ap-south-1:764866452798:layer:chrome-aws-lambda:29
+      
+  # High-memory tier for complex PDFs
+  generatePdfHiMem:
+    handler: handler.generatePdf
+    description: "Generates complex PDF documents with higher memory allocation"
+    timeout: 120
+    memorySize: 2048
+    events:
+      - http:
+          path: generate-pdf-complex
+          method: post
+          cors: true
+          contentHandling: CONVERT_TO_BINARY
+    tags:
+      Service: PDFGenerator
+      Tier: HighMemory
+      Environment: ${sls:stage}
+    layers:
+      - arn:aws:lambda:ap-south-1:764866452798:layer:chrome-aws-lambda:29
+      
+  # Long-running tier for large documents
+  generatePdfLongRunning:
+    handler: handler.generatePdf
+    description: "Generates large PDF documents with extended timeout"
+    timeout: 300  # 5 minutes
+    memorySize: 2048
+    events:
+      - http:
+          path: generate-pdf-large
+          method: post
+          cors: true
+          contentHandling: CONVERT_TO_BINARY
+    tags:
+      Service: PDFGenerator
+      Tier: LongRunning
+      Environment: ${sls:stage}
+    layers:
+      - arn:aws:lambda:ap-south-1:764866452798:layer:chrome-aws-lambda:29
+      
+  # Async PDF generation via queue
+  queuePdfGeneration:
+    handler: utils/queue-processor.queuePdfGeneration
+    description: "Queues PDF generation requests for asynchronous processing"
+    timeout: 10
+    memorySize: 128
+    events:
+      - http:
+          path: queue-pdf
+          method: post
+          cors: true
+    tags:
+      Service: PDFGenerator
+      Component: QueueAPI
+      Environment: ${sls:stage}
+      
+  # SQS Queue consumer for PDF generation
+  processPdfQueue:
+    handler: utils/queue-processor.processPdfQueue
+    description: "Processes queued PDF generation requests"
+    timeout: 120
+    memorySize: 2048
+    events:
+      - sqs:
+          arn: !GetAtt PdfGenerationQueue.Arn
+          batchSize: 1
+    tags:
+      Service: PDFGenerator
+      Component: QueueProcessor
+      Environment: ${sls:stage}
+    layers:
+      - arn:aws:lambda:ap-south-1:764866452798:layer:chrome-aws-lambda:29
+
+# Built-in esbuild configuration
+build:
+  # Disable esbuild for now to simplify deployment
+  esbuild: false
+
+# Optimize the Lambda package
+package:
+  individually: true
+  patterns:
+    # Include specific node_modules
+    - 'node_modules/handlebars/**'
+    - 'node_modules/marked/**'
+    - 'node_modules/moment/**'
+    - 'node_modules/puppeteer-core/**'
+    - 'node_modules/@sparticuz/chromium/**'
+    - 'node_modules/aws-sdk/**'  
+    - 'node_modules/lru-cache/**'  
+    - 'node_modules/axios/**'  
+    
+    # Include application files
+    - 'utils/**'
+    - 'handler.js'
+    - 'package.json'
+
+    # Exclude unnecessary files
+    - '!.serverless/**'
+    - '!.git/**'
+    - '!.github/**'
+    - '!test/**'
+    - '!tests/**'
+    - '!__tests__/**'
+    - '!coverage/**'
+    - '!*.test.js'
+    - '!*.spec.js'
+    - '!**/jest.config.js'
+
+plugins:
+  - serverless-plugin-warmup
+  - serverless-offline
+    
+custom:
+  # Configure Lambda warm-up
+  warmup:
+    default:
+      enabled: true
+      prewarm: true
+      cronExpression: '*/5 * * * ? *'
+      concurrency: 3
+      memorySize: 128
+      timeout: 10
+      payload:
+        source: 'serverless-warmup'
+    # Additional warm-up for high traffic periods
+    highTraffic:
+      enabled: ${param:enableHighTrafficWarmup, false}
+      prewarm: true
+      cronExpression: '*/2 * * ? * MON-FRI'  # Every 2 minutes on weekdays
+      concurrency: 5
+      memorySize: 128
+      timeout: 10
+      payload:
+        source: 'serverless-warmup'
+        tier: 'high-traffic'
+
+  # Add provisioned concurrency for peak traffic
+  provisionedConcurrency:
+    generatePdf: ${param:provisionedConcurrency, 5}
+
+resources:
+  Resources:
+    # PDF Storage S3 Bucket
+    PdfBucket:
+      Type: AWS::S3::Bucket
+      DeletionPolicy: Retain
+      Properties:
+        BucketName: ${self:provider.environment.BUCKET_NAME}
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+        BucketEncryption:
+          ServerSideEncryptionConfiguration:
+            - ServerSideEncryptionByDefault:
+                SSEAlgorithm: AES256
+        LifecycleConfiguration:
+          Rules:
+            - Id: ExpireOldFiles
+              Status: Enabled
+              ExpirationInDays: 30
+        CorsConfiguration:
+          CorsRules:
+            - AllowedOrigins:
+                - '*'
+              AllowedHeaders:
+                - '*'
+              AllowedMethods:
+                - GET
+              MaxAge: 3600
+              
+    # S3 Bucket Policy - Only allow HTTPS access
+    PdfBucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket: !Ref PdfBucket
+        PolicyDocument:
+          Statement:
+            - Effect: Deny
+              Principal: '*'
+              Action: 's3:*'
+              Resource:
+                - !GetAtt PdfBucket.Arn
+                - !Join ['', [!GetAtt PdfBucket.Arn, '/*']]
+              Condition:
+                Bool:
+                  'aws:SecureTransport': false
+    
+    # SQS Queue for PDF generation requests
+    PdfGenerationQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:service}-${sls:stage}-pdf-generation.fifo
+        FifoQueue: true
+        ContentBasedDeduplication: false
+        VisibilityTimeout: 150  # 2.5 minutes to match Lambda timeout
+        RedrivePolicy:
+          deadLetterTargetArn: !GetAtt PdfGenerationDLQ.Arn
+          maxReceiveCount: 3
+        MessageRetentionPeriod: 1209600  # 14 days
+        Tags:
+          - Key: Service
+            Value: PDFGenerator
+    
+    # Dead letter queue for failed PDF generation requests
+    PdfGenerationDLQ:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:service}-${sls:stage}-pdf-generation-dlq.fifo
+        FifoQueue: true
+        ContentBasedDeduplication: false
+        MessageRetentionPeriod: 1209600  # 14 days
+        Tags:
+          - Key: Service
+            Value: PDFGenerator
+                
+    # Log Group for Lambda Function
+    GeneratePdfLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/lambda/${self:service}-${sls:stage}-generatePdf
+        RetentionInDays: 30
+    
+    # CloudWatch Dashboard
+    PDFGeneratorDashboard:
+      Type: AWS::CloudWatch::Dashboard
+      Properties:
+        DashboardName: ${self:service}-${sls:stage}-dashboard
+        DashboardBody: !Sub |
+          {
+            "widgets": [
+              {
+                "type": "metric",
+                "x": 0,
+                "y": 0,
+                "width": 12,
+                "height": 6,
+                "properties": {
+                  "metrics": [
+                    [ "AWS/Lambda", "Invocations", "FunctionName", "${self:service}-${sls:stage}-generatePdf" ],
+                    [ "AWS/Lambda", "Invocations", "FunctionName", "${self:service}-${sls:stage}-generatePdfHiMem" ],
+                    [ "AWS/Lambda", "Invocations", "FunctionName", "${self:service}-${sls:stage}-generatePdfLongRunning" ]
+                  ],
+                  "view": "timeSeries",
+                  "stacked": false,
+                  "region": "${self:provider.region}",
+                  "title": "PDF Generation Invocations",
+                  "period": 300
+                }
+              },
+              {
+                "type": "metric",
+                "x": 12,
+                "y": 0,
+                "width": 12,
+                "height": 6,
+                "properties": {
+                  "metrics": [
+                    [ "AWS/Lambda", "Duration", "FunctionName", "${self:service}-${sls:stage}-generatePdf", { "label": "Standard Tier" } ],
+                    [ "AWS/Lambda", "Duration", "FunctionName", "${self:service}-${sls:stage}-generatePdfHiMem", { "label": "High Memory Tier" } ],
+                    [ "AWS/Lambda", "Duration", "FunctionName", "${self:service}-${sls:stage}-generatePdfLongRunning", { "label": "Long Running Tier" } ]
+                  ],
+                  "view": "timeSeries",
+                  "stacked": false,
+                  "region": "${self:provider.region}",
+                  "title": "PDF Generation Duration",
+                  "period": 300
+                }
+              },
+              {
+                "type": "metric",
+                "x": 0,
+                "y": 6,
+                "width": 12,
+                "height": 6,
+                "properties": {
+                  "metrics": [
+                    [ "AWS/Lambda", "Errors", "FunctionName", "${self:service}-${sls:stage}-generatePdf" ],
+                    [ "AWS/Lambda", "Errors", "FunctionName", "${self:service}-${sls:stage}-generatePdfHiMem" ],
+                    [ "AWS/Lambda", "Errors", "FunctionName", "${self:service}-${sls:stage}-generatePdfLongRunning" ]
+                  ],
+                  "view": "timeSeries",
+                  "stacked": false,
+                  "region": "${self:provider.region}",
+                  "title": "PDF Generation Errors",
+                  "period": 300
+                }
+              },
+              {
+                "type": "metric",
+                "x": 12,
+                "y": 6,
+                "width": 12,
+                "height": 6,
+                "properties": {
+                  "metrics": [
+                    [ "AWS/Lambda", "ConcurrentExecutions", "FunctionName", "${self:service}-${sls:stage}-generatePdf" ],
+                    [ "AWS/Lambda", "ConcurrentExecutions", "FunctionName", "${self:service}-${sls:stage}-generatePdfHiMem" ],
+                    [ "AWS/Lambda", "ConcurrentExecutions", "FunctionName", "${self:service}-${sls:stage}-generatePdfLongRunning" ]
+                  ],
+                  "view": "timeSeries",
+                  "stacked": true,
+                  "region": "${self:provider.region}",
+                  "title": "PDF Generation Concurrent Executions",
+                  "period": 60
+                }
+              },
+              {
+                "type": "metric",
+                "x": 0,
+                "y": 12,
+                "width": 24,
+                "height": 6,
+                "properties": {
+                  "metrics": [
+                    [ "PDF/Generator", "pdfSizeKB", "Service", "PDFGenerator", { "stat": "Average" } ],
+                    [ "PDF/Generator", "memoryUsedMB", "Service", "PDFGenerator", { "stat": "Maximum" } ]
+                  ],
+                  "view": "timeSeries",
+                  "stacked": false,
+                  "region": "${self:provider.region}",
+                  "title": "PDF Size and Memory Usage",
+                  "period": 300
+                }
+              },
+              {
+                "type": "metric",
+                "x": 0,
+                "y": 18,
+                "width": 12,
+                "height": 6,
+                "properties": {
+                  "metrics": [
+                    [ "AWS/SQS", "NumberOfMessagesSent", "QueueName", "${self:service}-${sls:stage}-pdf-generation.fifo" ],
+                    [ "AWS/SQS", "NumberOfMessagesReceived", "QueueName", "${self:service}-${sls:stage}-pdf-generation.fifo" ],
+                    [ "AWS/SQS", "NumberOfMessagesDeleted", "QueueName", "${self:service}-${sls:stage}-pdf-generation.fifo" ]
+                  ],
+                  "view": "timeSeries",
+                  "stacked": false,
+                  "region": "${self:provider.region}",
+                  "title": "SQS Queue Activity",
+                  "period": 300
+                }
+              },
+              {
+                "type": "metric",
+                "x": 12,
+                "y": 18,
+                "width": 12,
+                "height": 6,
+                "properties": {
+                  "metrics": [
+                    [ "AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", "${self:service}-${sls:stage}-pdf-generation.fifo" ],
+                    [ "AWS/SQS", "ApproximateNumberOfMessagesNotVisible", "QueueName", "${self:service}-${sls:stage}-pdf-generation.fifo" ],
+                    [ "AWS/SQS", "ApproximateAgeOfOldestMessage", "QueueName", "${self:service}-${sls:stage}-pdf-generation.fifo" ]
+                  ],
+                  "view": "timeSeries",
+                  "stacked": false,
+                  "region": "${self:provider.region}",
+                  "title": "SQS Queue Status",
+                  "period": 300
+                }
+              }
+            ]
+          }
+    
+    # Error Rate Alarm
+    PDFGeneratorErrorAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Properties:
+        AlarmName: ${self:service}-${sls:stage}-high-error-rate
+        AlarmDescription: Alarm if PDF generator error rate exceeds threshold
+        MetricName: Errors
+        Namespace: AWS/Lambda
+        Dimensions:
+          - Name: FunctionName
+            Value: !Ref GeneratePdfLambdaFunction
+        Statistic: Sum
+        Period: 300
+        EvaluationPeriods: 1
+        Threshold: 5
+        ComparisonOperator: GreaterThanThreshold
+        TreatMissingData: notBreaching
+        
+    # High Concurrency Alarm  
+    PDFGeneratorConcurrencyAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Properties:
+        AlarmName: ${self:service}-${sls:stage}-high-concurrency
+        AlarmDescription: Alarm if PDF generator concurrency approaches limit
+        MetricName: ConcurrentExecutions
+        Namespace: AWS/Lambda
+        Dimensions:
+          - Name: FunctionName
+            Value: !Ref GeneratePdfLambdaFunction
+        Statistic: Maximum
+        Period: 60
+        EvaluationPeriods: 1
+        Threshold: 500
+        ComparisonOperator: GreaterThanThreshold
+        TreatMissingData: notBreaching
+    
+  # CloudFormation Outputs
+  Outputs:
+    PdfBucketName:
+      Description: "Name of the S3 bucket for PDF storage"
+      Value: !Ref PdfBucket
+    ApiEndpoint:
+      Description: "API Gateway endpoint URL for the PDF generation service"
+      Value: 
+        Fn::Join:
+          - ""
+          - - "https://"
+            - !Ref ApiGatewayRestApi
+            - ".execute-api.${self:provider.region}.amazonaws.com/${sls:stage}"
+    QueueUrl:
+      Description: "URL of the SQS queue for PDF generation"
+      Value: !Ref PdfGenerationQueue
+    DashboardUrl:
+      Description: "URL of the CloudWatch Dashboard for monitoring"
+      Value: 
+        Fn::Join:
+          - ""
+          - - "https://${self:provider.region}.console.aws.amazon.com/cloudwatch/home?region=${self:provider.region}#dashboards:name="
+            - !Ref PDFGeneratorDashboard

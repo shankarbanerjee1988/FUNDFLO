@@ -1,0 +1,171 @@
+<!-- Example 1: Basic Invoice Template -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Invoice</title>
+</head>
+<body>
+  <h1>Invoice #{{invoiceNumber}}</h1>
+  <p>Date: {{formatDate invoiceDate}}</p>
+  
+  <div class="customer">
+    <h2>Billed To</h2>
+    <p>{{customerName}}</p>
+    <p>{{customerAddress}}</p>
+  </div>
+  
+  <table>
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Quantity</th>
+        <th>Price</th>
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each items}}
+      <tr>
+        <td>{{name}}</td>
+        <td>{{quantity}}</td>
+        <td>{{formatCurrency price}}</td>
+        <td>{{formatCurrency (multiply quantity price)}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="3">Total</td>
+        <td>{{formatCurrency total}}</td>
+      </tr>
+    </tfoot>
+  </table>
+</body>
+</html>
+
+
+<!-- Example 2: Report with Markdown -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>{{title}}</title>
+  <style>
+    .report-section {
+      margin-bottom: 20px;
+      page-break-inside: avoid;
+    }
+    .summary {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>{{title}}</h1>
+  <p>Generated on: {{formatDate generatedDate "DD MMMM YYYY"}}</p>
+  
+  <div class="summary">
+    <h2>Executive Summary</h2>
+    {{markdown summary}}
+  </div>
+  
+  {{#each sections}}
+  <div class="report-section">
+    <h2>{{title}}</h2>
+    {{markdown content}}
+    
+    {{#if data}}
+    <h3>Data Analysis</h3>
+    {{jsonTable data}}
+    {{/if}}
+  </div>
+  {{/each}}
+  
+  {{#if conclusions}}
+  <div class="report-section">
+    <h2>Conclusions</h2>
+    {{markdown conclusions}}
+  </div>
+  {{/if}}
+</body>
+</html>
+
+<!-- Example 3: Certificate Template -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Certificate</title>
+  <style>
+    body {
+      font-family: 'Times New Roman', serif;
+      text-align: center;
+      padding: 50px;
+      border: 20px double #gold;
+      position: relative;
+    }
+    .certificate-title {
+      font-size: 28pt;
+      color: #333;
+      margin-bottom: 30px;
+    }
+    .recipient {
+      font-size: 24pt;
+      color: #333;
+      margin: 20px 0;
+      font-style: italic;
+    }
+    .description {
+      font-size: 14pt;
+      margin: 20px 0 40px 0;
+    }
+    .signature {
+      margin-top: 60px;
+      display: flex;
+      justify-content: space-around;
+    }
+    .signature-line {
+      width: 200px;
+      border-top: 1px solid #000;
+      margin-top: 10px;
+    }
+    .date {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="certificate-title">{{certificateTitle}}</div>
+  
+  <p>This is to certify that</p>
+  
+  <div class="recipient">{{recipientName}}</div>
+  
+  <p class="description">{{description}}</p>
+  
+  <div class="date">{{formatDate issuedDate "MMMM DD, YYYY"}}</div>
+  
+  <div class="signature">
+    <div>
+      <div class="signature-line"></div>
+      <p>{{signatoryName}}</p>
+      <p>{{signatoryTitle}}</p>
+    </div>
+    
+    <div>
+      <div class="signature-line"></div>
+      <p>{{secondSignatoryName}}</p>
+      <p>{{secondSignatoryTitle}}</p>
+    </div>
+  </div>
+  
+  {{#if certificateId}}
+  <div style="position: absolute; bottom: 20px; right: 20px; font-size: 10pt;">
+    Certificate ID: {{certificateId}}
+  </div>
+  {{/if}}
+</body>
+</html>

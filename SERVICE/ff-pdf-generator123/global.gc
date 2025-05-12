@@ -1,0 +1,13 @@
+// Check if we can force garbage collection
+const canForceGc = typeof global.gc === 'function';
+
+// Function to try freeing memory when possible
+async function tryToFreeMemory() {
+  if (canForceGc) {
+    logger.debug('Forcing garbage collection');
+    global.gc();
+  }
+  
+  // Give event loop a chance to clean up
+  await new Promise(resolve => setTimeout(resolve, 100));
+}

@@ -1,0 +1,54 @@
+
+  {
+    "templateContent": "<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"UTF-8\">\n  <title>Invoice</title>\n  <style>\n    body { font-family: Arial, sans-serif; }\n    .invoice-header { display: flex; justify-content: space-between; margin-bottom: 20px; }\n    .invoice-title { font-size: 24px; font-weight: bold; }\n    table { width: 100%; border-collapse: collapse; margin: 20px 0; }\n    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\n    th { background-color: #f2f2f2; }\n    .total-row { font-weight: bold; }\n  </style>\n</head>\n<body>\n  <div class=\"invoice-header\">\n    <div>\n      <div class=\"invoice-title\">INVOICE</div>\n      <div>Invoice #: {{invoiceNumber}} </div>\n  <img style=\"height:40px;width:40px;\" src=\"https://fundflo-dev-ar-ap-south-1-files-public.s3.ap-south-1.amazonaws.com/product-catalog/bf2b960b-8547-317c-c9c4-ad47576085c6/SAWPLN/inside_SAWPLN.jpg\" alt=\"Virtual-hosted style\" style=\"max-width: 400px;\">   <div>Date: {{formatDate invoiceDate \"DD/MM/YYYY\"}}</div>\n    </div>\n    <div>\n      <h3>{{companyName}}</h3>\n      <div>{{companyAddress}}</div>\n      <div>{{companyPhone}}</div>\n      <div>{{companyEmail}}</div>\n    </div>\n  </div>\n\n  <div class=\"customer-info\">\n    <h3>Billed To:</h3>\n    <div>{{customerName}}</div>\n    <div>{{customerAddress}}</div>\n    <div>{{customerEmail}}</div>\n  </div>\n\n  <table>\n    <thead>\n      <tr>\n        <th>Item</th>\n        <th>Description</th>\n        <th>Quantity</th>\n        <th>Unit Price</th>\n        <th>Amount</th>\n      </tr>\n    </thead>\n    <tbody>\n      {{#each items}}\n      <tr>\n        <td>{{name}}</td>\n        <td>{{description}}</td>\n        <td>{{quantity}}</td>\n        <td>{{formatCurrency unitPrice}}</td>\n        <td>{{formatCurrency (multiply quantity unitPrice)}}</td>\n      </tr>\n      {{/each}}\n    </tbody>\n    <tfoot>\n      <tr>\n        <td colspan=\"4\" align=\"right\">Subtotal:</td>\n        <td>{{formatCurrency subtotal}}</td>\n      </tr>\n      <tr>\n        <td colspan=\"4\" align=\"right\">Tax ({{tax}}%):</td>\n        <td>{{formatCurrency taxAmount}}</td>\n      </tr>\n      <tr class=\"total-row\">\n        <td colspan=\"4\" align=\"right\">Total:</td>\n        <td>{{formatCurrency total}}</td>\n      </tr>\n    </tfoot>\n  </table>\n\n  <div class=\"notes\">\n    <h3>Notes:</h3>\n    <div>{{notes}}</div>\n  </div>\n</body>\n</html>",
+    
+    "data": {
+      "invoiceNumber": "INV-2025-0042",
+      "invoiceDate": "2025-05-08",
+      "companyName": "Tech Solutions Pvt Ltd",
+      "companyAddress": "123 Business Park, Mumbai 400001",
+      "companyPhone": "+91 22 1234 5678",
+      "companyEmail": "billing@techsolutions.com",
+      "customerName": "Global Enterprises Ltd",
+      "customerAddress": "456 Corporate Avenue, Delhi 110001",
+      "customerEmail": "accounts@globalenterprises.com",
+      "items": [
+        {
+          "name": "Web Development",
+          "description": "E-commerce website development",
+          "quantity": 1,
+          "unitPrice": 50000
+        },
+        {
+          "name": "SEO Services",
+          "description": "3-month search engine optimization",
+          "quantity": 1,
+          "unitPrice": 15000
+        },
+        {
+          "name": "Content Creation",
+          "description": "10 blog articles",
+          "quantity": 10,
+          "unitPrice": 2000
+        }
+      ],
+      "subtotal": 85000,
+      "tax": 18,
+      "taxAmount": 15300,
+      "total": 100300,
+      "notes": "Payment due within 30 days. Bank transfer details will be sent separately."
+    },
+    
+    "format": "A4",
+    "landscape": false,
+    "displayHeaderFooter": true,
+    "headerTemplate": "<div style='width: 100%; font-size: 10px; padding: 5px 20px; border-bottom: 1px solid #ddd; text-align: center;'>Fundflo Tech - Invoice</div>",
+
+    "printBackground": true,
+    "margin": {
+      "top": "80px",
+      "right": "30px",
+      "bottom": "80px",
+      "left": "30px"
+    }
+  }

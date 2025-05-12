@@ -1,0 +1,269 @@
+service: ff-pdf-generator
+
+frameworkVersion: '4'
+
+provider:
+  name: aws
+  runtime: nodejs22.x
+  region: ap-south-1
+  timeout: 60
+  memorySize: 2048
+  logRetentionInDays: 30
+  
+  # Enable X-Ray tracing
+  tracing:
+    apiGateway: true
+    lambda: true
+    
+  apiGateway:
+    minimumCompressionSize: 1024
+    # Configure binary media types to support PDF
+    binaryMediaTypes:
+      - 'application/pdf'
+      - '*/*'
+    # Global CORS configuration for API Gateway
+    cors:
+      allowOrigin: '*'
+      allowHeaders:
+        - Content-Type
+        - X-Amz-Date
+        - Authorization
+        - X-Api-Key
+        - X-Amz-Security-Token
+        - Access-Control-Allow-Origin
+        - Access-Control-Allow-Credentials
+      allowMethods:
+        - OPTIONS
+        - POST
+      allowCredentials: false
+      maxAge: 3600
+    
+  environment:
+    BUCKET_NAME: ff-pdf-generator-bucket-${sls:stage}-${aws:region}
+    NODE_OPTIONS: '--max-old-space-size=2048 --expose-gc'
+    AUTH_SERVICE_URL: "https://ar-apis.uat.fundflo.ai/v1/admin/auth/stats"
+    STAGE: ${sls:stage}
+    # Set static log level
+    LOG_LEVEL: 'info'
+    
+  # IAM role statements for the Lambda function
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - s3:PutObject
+        - s3:GetObject
+      Resource:
+        - arn:aws:s3:::${self:provider.environment.BUCKET_NAME}/*
+    - Effect: Allow
+      Action:
+        - logs:CreateLogGroup
+        - logs:CreateLogStream
+        - logs:PutLogEvents
+        - logs:DescribeLogGroups
+      Resource: "arn:aws:logs:*:*:*"
+    - Effect: Allow
+      Action:
+        - xray:PutTraceSegments
+        - xray:PutTelemetryRecords
+      Resource: "*"
+
+functions:
+  generatePdf:
+    handler: handler.generatePdf
+    description: "Generates PDF documents using headless Chrome"
+    events:
+      - http:
+          path: generate-pdf
+          method: post
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - Access-Control-Allow-Origin
+              - Access-Control-Allow-Credentials
+            allowMethods:
+              - OPTIONS
+              - POST
+            allowCredentials: false
+            maxAge: 3600
+          # Configure integration to handle binary responses
+          contentHandling: CONVERT_TO_BINARY
+          integration: lambda
+          response:
+            # Add default response headers for CORS
+            headers:
+              Access-Control-Allow-Origin: "'*'"
+              Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              Access-Control-Allow-Methods: "'OPTIONS,POST'"
+    # Configure function-specific logs
+    tags:
+      Service: PDFGenerator
+      Environment: ${sls:stage}
+    # Use public chromium layer (available in ap-south-1)
+    layers:
+      - arn:aws:lambda:ap-south-1:764866452798:layer:chrome-aws-lambda:29
+
+  # Add OPTIONS handler for CORS preflight requests
+  corsHandler:
+    handler: handler.corsHandler
+    description: "Handles CORS preflight OPTIONS requests"
+    events:
+      - http:
+          path: generate-pdf
+          method: options
+          cors: true
+
+# Built-in esbuild configuration (new in Serverless Framework v4)
+build:
+  # Disable esbuild for now to simplify deployment
+  esbuild: false
+
+# Optimize the Lambda package (include necessary dependencies)
+package:
+  individually: true
+  patterns:
+    # Include specific node_modules
+    - 'node_modules/handlebars/**'
+    - 'node_modules/marked/**'
+    - 'node_modules/moment/**'
+    - 'node_modules/puppeteer-core/**'
+    - 'node_modules/@sparticuz/chromium/**'
+    - 'node_modules/aws-sdk/**'  
+    - 'node_modules/axios/**' 
+
+    # Include application files
+    - 'utils/**'
+    - 'handler.js'
+    - 'package.json'
+
+    # Exclude unnecessary files
+    - '!.serverless/**'
+    - '!.git/**'
+    - '!.github/**'
+    - '!test/**'
+    - '!tests/**'
+    - '!__tests__/**'
+    - '!coverage/**'
+    - '!*.test.js'
+    - '!*.spec.js'
+    - '!**/jest.config.js'
+
+plugins:
+  - serverless-plugin-warmup
+  - serverless-offline
+  - serverless-domain-manager  # Add this plugin for custom domain management
+    
+custom:
+  warmup:
+    default:
+      enabled: true
+      prewarm: true
+      cronExpression: '*/5 * * * ? *'
+      concurrency: 3
+      memorySize: 128
+      timeout: 10
+      payload:
+        source: 'serverless-warmup'
+      logRetentionInDays: 30  # Add this line to ensure log group creation
+
+  # Custom domain configuration
+  customDomain:
+    domainName: service.fundflo.ai # Replace with your actual subdomain
+    basePath: '' # Empty for root path
+    stage: ${sls:stage}
+    createRoute53Record: true
+    certificateName: '*.fundflo.ai'
+    endpointType: 'regional' # Can be 'regional' or 'edge'
+    securityPolicy: tls_1_2
+    autoDomain: true
+    hostedZoneId: Z0312742AL91H10QHE0Q
+
+resources:
+  Resources:
+    # PDF Storage S3 Bucket
+    PdfBucket:
+      Type: AWS::S3::Bucket
+      DeletionPolicy: Retain
+      Properties:
+        BucketName: ${self:provider.environment.BUCKET_NAME}
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+        BucketEncryption:
+          ServerSideEncryptionConfiguration:
+            - ServerSideEncryptionByDefault:
+                SSEAlgorithm: AES256
+        LifecycleConfiguration:
+          Rules:
+            - Id: ExpireOldFiles
+              Status: Enabled
+              ExpirationInDays: 30
+        CorsConfiguration:
+          CorsRules:
+            - AllowedOrigins:
+                - '*'
+              AllowedHeaders:
+                - '*'
+              AllowedMethods:
+                - GET
+                - POST
+                - HEAD
+              MaxAge: 3600
+              
+    # S3 Bucket Policy - Only allow HTTPS access
+    PdfBucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket: !Ref PdfBucket
+        PolicyDocument:
+          Statement:
+            - Effect: Deny
+              Principal: '*'
+              Action: 's3:*'
+              Resource:
+                - !GetAtt PdfBucket.Arn
+                - !Join ['', [!GetAtt PdfBucket.Arn, '/*']]
+              Condition:
+                Bool:
+                  'aws:SecureTransport': false
+                
+    # Log Group for Lambda Function
+    GeneratePdfLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/lambda/${self:service}-${sls:stage}-generatePdf
+        RetentionInDays: 30
+
+    # Add this new log group
+    CorsHandlerLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/lambda/${self:service}-${sls:stage}-corsHandler
+        RetentionInDays: 30
+        
+    # Add this for the WarmUp plugin
+    WarmUpPluginDefaultLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/lambda/${self:service}-${sls:stage}-warmup-plugin
+        RetentionInDays: 30
+    
+  # CloudFormation Outputs
+  Outputs:
+    PdfBucketName:
+      Description: "Name of the S3 bucket for PDF storage"
+      Value: !Ref PdfBucket
+    ApiEndpoint:
+      Description: "API Gateway endpoint URL for the PDF generation service"
+      Value: 
+        Fn::Join:
+          - ""
+          - - "https://"
+            - !Ref ApiGatewayRestApi
+            - ".execute-api.${self:provider.region}.amazonaws.com/${sls:stage}"
