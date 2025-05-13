@@ -1,0 +1,19 @@
+config:
+  target: "https://your-api-id.execute-api.ap-south-1.amazonaws.com/dev"
+  phases:
+    - duration: 60
+      arrivalRate: 5
+  defaults:
+    headers:
+      Content-Type: "application/json"
+
+scenarios:
+  - name: "Generate PDFs"
+    flow:
+      - post:
+          url: "/generate-pdf"
+          json:
+            templateContent: "<h1>{{title}}</h1><p>{{content}}</p>"
+            data:
+              title: "Load Test"
+              content: "This is a load test."

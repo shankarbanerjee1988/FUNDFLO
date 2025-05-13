@@ -40,3 +40,10 @@ SERVICE/ff-pdf-generator123/.serverless
 SERVICE/nodemailer
 SERVICE/fundflo-services
 SERVICE/*.zip
+
+SERVICE/ff-pdf-generator_1st/node_modules/*
+SERVICE/ff-pdf-generator_1st/.serverless
+SERVICE/ff-pdf-generator_1st/package-lock*
+SERVICE/ff-pdf-generator_1st/.vscode
+SERVICE/ff-pdf-generator_1st/package-lock*
+SERVICE/ff-pdf-generator_1st/.serverless
