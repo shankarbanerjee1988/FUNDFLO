@@ -34,14 +34,23 @@ provider:
         - X-Requested-With
         - Accept
         - Origin
+        - Access-Control-Allow-Headers
+        - Access-Control-Allow-Origin
+        - Access-Control-Request-Method
+        - Access-Control-Request-Headers
+        - Cache-Control
+        - Connection
+        - Pragma
       allowedMethods:
         - GET
         - POST
         - PUT
+        - PATCH
         - DELETE
         - OPTIONS
-      allowCredentials: false
-      maxAge: 3600
+        - HEAD
+      allowCredentials: true
+      maxAge: 86400
     
   environment:
     BUCKET_NAME: ff-pdf-generator-bucket-${sls:stage}-${aws:region}
@@ -79,7 +88,23 @@ functions:
       - http:
           path: generate-pdf
           method: post
-          cors: true  # Use the global CORS configuration
+          cors: 
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Requested-With
+              - Accept
+              - Origin
+              - Access-Control-Allow-Headers
+              - Access-Control-Allow-Origin
+              - Access-Control-Request-Method
+              - Access-Control-Request-Headers
+            allowCredentials: true
+            maxAge: 86400
           # Configure integration to handle binary responses
           contentHandling: CONVERT_TO_BINARY
     # Configure function-specific logs
@@ -146,6 +171,29 @@ custom:
 
 resources:
   Resources:
+    # CORS configuration for API Gateway
+    GatewayResponseDefault4XX:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With,Accept,Origin,Access-Control-Allow-Headers,Access-Control-Allow-Origin,Access-Control-Request-Method,Access-Control-Request-Headers'"
+          gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD'"
+        ResponseType: DEFAULT_4XX
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
+          
+    GatewayResponseDefault5XX:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With,Accept,Origin,Access-Control-Allow-Headers,Access-Control-Allow-Origin,Access-Control-Request-Method,Access-Control-Request-Headers'"
+          gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD'"
+        ResponseType: DEFAULT_5XX
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
+          
     # PDF Storage S3 Bucket
     PdfBucket:
       Type: AWS::S3::Bucket
