@@ -1,3 +1,6 @@
+// Updated generatePdfBuffer.js with improved Chromium path handling
+// Need to force the correct path for Chromium on AWS Lambda
+
 let chromium;
 try {
   chromium = require('@sparticuz/chromium');
@@ -16,24 +19,28 @@ try {
 const puppeteer = require('puppeteer-core');
 let Logger;
 try {
-  Logger = require('./../utils/logger-file');
+  Logger = require('./logger');
 } catch (error) {
-  Logger = class SimpleLogger {
-    constructor(context) {
-      this.context = context;
-    }
-    debug(msg, data) { console.log(`[DEBUG] [${this.context}]`, msg, data || ''); }
-    info(msg, data) { console.log(`[INFO] [${this.context}]`, msg, data || ''); }
-    warn(msg, data) { console.warn(`[WARN] [${this.context}]`, msg, data || ''); }
-    error(msg, data) { console.error(`[ERROR] [${this.context}]`, msg, data || ''); }
-    updateMetrics() {}
-    logMemoryUsage() {
-      const memUsage = process.memoryUsage();
-      console.log(`Memory usage: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`);
-    }
-    recordPdfGeneration() {}
-    logEnd() {}
-  };
+  try {
+    Logger = require('./Logger');
+  } catch (upperError) {
+    Logger = class SimpleLogger {
+      constructor(context) {
+        this.context = context;
+      }
+      debug(msg, data) { console.log(`[DEBUG] [${this.context}]`, msg, data || ''); }
+      info(msg, data) { console.log(`[INFO] [${this.context}]`, msg, data || ''); }
+      warn(msg, data) { console.warn(`[WARN] [${this.context}]`, msg, data || ''); }
+      error(msg, data) { console.error(`[ERROR] [${this.context}]`, msg, data || ''); }
+      updateMetrics() {}
+      logMemoryUsage() {
+        const memUsage = process.memoryUsage();
+        console.log(`Memory usage: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`);
+      }
+      recordPdfGeneration() {}
+      logEnd() {}
+    };
+  }
 }
 
 // Initialize logger
@@ -316,18 +323,61 @@ module.exports = async function generatePdfBuffer(html, options = {}) {
     let args = [];
     let defaultViewport = null;
     
+    // Try to get executable path based on module type
     if (typeof chromium.executablePath === 'function') {
-      // @sparticuz/chromium style
-      executablePath = await chromium.executablePath();
-      args = chromium.args || [];
-      defaultViewport = chromium.defaultViewport || { width: 1280, height: 720 };
-    } else {
+      try {
+        // Force path for @sparticuz/chromium
+        process.env.CHROMIUM_PATH = '/opt/bin/chromium';
+        executablePath = await chromium.executablePath();
+        args = chromium.args || [];
+        defaultViewport = chromium.defaultViewport || { width: 1280, height: 720 };
+        logger.info('Using @sparticuz/chromium executablePath with forced path');
+      } catch (error) {
+        logger.warn(`Error getting path from @sparticuz/chromium: ${error.message}`);
+        // Fall back to hardcoded path
+        executablePath = '/opt/bin/chromium';
+        logger.info('Falling back to hardcoded Lambda layer path: /opt/bin/chromium');
+      }
+    } else if (chromium.executablePath) {
       // chrome-aws-lambda style
       executablePath = await chromium.executablePath;
       args = chromium.args || [];
       defaultViewport = chromium.defaultViewport || { width: 1280, height: 720 };
+      logger.info('Using chrome-aws-lambda executablePath');
+    } else {
+      logger.warn('No executablePath available from chromium module, checking for Layer path');
+      
+      // Check common locations for chromium in AWS Lambda layers environment
+      const possiblePaths = [
+        '/opt/bin/chromium',
+        '/opt/nodejs/node_modules/@sparticuz/chromium/bin',
+        '/opt/chrome/chrome',
+        '/var/task/node_modules/@sparticuz/chromium/bin',
+        '/tmp/chromium'
+      ];
+      
+      // Try to find chromium in common locations
+      const fs = require('fs');
+      for (const path of possiblePaths) {
+        try {
+          if (fs.existsSync(path)) {
+            logger.info(`Found Chromium at: ${path}`);
+            executablePath = path;
+            break;
+          }
+        } catch (err) {
+          logger.debug(`Error checking path ${path}: ${err.message}`);
+        }
+      }
+      
+      // If we still don't have a path, try the AWS Lambda layer path
+      if (!executablePath) {
+        logger.info('Using default AWS Lambda layer path for Chromium');
+        executablePath = '/opt/bin/chromium';
+      }
     }
     
+    // Log the chromium executable path for debugging
     logger.debug(`Chromium executable path: ${executablePath}`);
     
     // Configure browser launch options
@@ -361,7 +411,10 @@ module.exports = async function generatePdfBuffer(html, options = {}) {
       ignoreHTTPSErrors: true,
     };
     
-    logger.info('Launching browser');
+    logger.info('Launching browser with config', {
+      executablePath,
+      args: browserConfig.args.slice(0, 3) + '... (truncated)'
+    });
     
     browser = await puppeteer.launch(browserConfig);
 
@@ -390,7 +443,7 @@ module.exports = async function generatePdfBuffer(html, options = {}) {
     page.on('requestfailed', request => {
       failedRequests++;
       logger.warn(`Request failed: ${request.url().substring(0, 100)}...`, {
-        reason: request.failure().errorText
+        reason: request.failure() ? request.failure().errorText : 'unknown'
       });
       
       if (request.resourceType() === 'image') {

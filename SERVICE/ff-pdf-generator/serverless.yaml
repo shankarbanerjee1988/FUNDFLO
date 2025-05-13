@@ -46,6 +46,8 @@ provider:
     STAGE: ${sls:stage}
     # Set static log level
     LOG_LEVEL: 'debug' # Set to debug for more verbose logs
+    # Using the default paths in chrome-aws-lambda layer
+    PUPPETEER_EXECUTABLE_PATH: "/opt/chrome/chrome"
     
   # IAM role statements for the Lambda function
   iamRoleStatements:
@@ -83,9 +85,9 @@ functions:
     tags:
       Service: PDFGenerator
       Environment: ${sls:stage}
-    # Use public chromium layer (available in ap-south-1)
+    # Use the latest chromium-lambda layer available - this is critical
     layers:
-      - arn:aws:lambda:ap-south-1:764866452798:layer:chrome-aws-lambda:29
+      - arn:aws:lambda:ap-south-1:764866452798:layer:chrome-aws-lambda:39
 
   # Add OPTIONS handler for CORS preflight requests
   corsHandler:
@@ -111,6 +113,11 @@ build:
     - "tests/**"
     - "./**/__tests__/**"
 
+plugins:
+  - serverless-plugin-warmup
+  - serverless-offline
+  - serverless-domain-manager
+
 # Dependency bundling and optimization
 custom:
   # Configure Lambda warm-up
@@ -125,6 +132,17 @@ custom:
       payload:
         source: 'serverless-warmup'
       logRetentionInDays: 30  # Add this line to ensure log group creation
+  
+  # Custom domain configuration
+  customDomain:
+    domainName: service.fundflo.ai
+    basePath: ''
+    stage: ${sls:stage}
+    createRoute53Record: true
+    certificateName: '*.fundflo.ai'
+    endpointType: 'regional'
+    securityPolicy: tls_1_2
+    apiType: rest
 
 resources:
   Resources:
@@ -233,3 +251,10 @@ resources:
           - - "https://"
             - !Ref ApiGatewayRestApi
             - ".execute-api.${self:provider.region}.amazonaws.com/${sls:stage}"
+    CustomDomainEndpoint:
+      Description: "Custom domain URL for the PDF generation service"
+      Value: 
+        Fn::Join:
+          - ""
+          - - "https://"
+            - "service.fundflo.ai/"
