@@ -1,6 +1,8 @@
 const renderHtml = require('./utils/renderHtml');
 const generatePdfBuffer = require('./utils/generatePdfBuffer');
 const uploadToS3 = require('./utils/uploadToS3');
+const { authenticateRequest } = require("./auth/authenticate");
+require("dotenv").config();
 
 /**
  * Lambda function to generate PDFs from templates
@@ -10,9 +12,13 @@ const uploadToS3 = require('./utils/uploadToS3');
 exports.generatePdf = async (event) => {
   // Check if this is a warmup invocation
   if (event.source === 'serverless-warmup') {
-    console.log('WarmUp - Lambda is warm!');
+    // console.log('WarmUp - Lambda is warm!');
     return { statusCode: 200, body: 'Warmed up' };
   }
+
+      // 🔹 Authentication Check
+      const authError = await authenticateRequest(event);
+      if (authError) return authError;
 
   console.log('Starting PDF generation process');
   try {
@@ -45,18 +51,24 @@ exports.generatePdf = async (event) => {
       };
     }
 
-    // Try to load authentication module safely
-let authenticateRequest = async () => null; // Default no-op authentication
-let getUserInfo = (event) => ({ userId: 'anonymous' }); // Default user info
+//     // Try to load authentication module safely
+// let authenticateRequest = async () => null; // Default no-op authentication
+// let getUserInfo = (event) => ({ userId: 'anonymous' }); // Default user info
 
-try {
-  const authModule = require('./auth/authenticate');
-  authenticateRequest = authModule.authenticateRequest;
-  getUserInfo = authModule.getUserInfo;
-  console.log('Authentication module loaded successfully');
-} catch (authError) {
-  console.warn('Authentication module not found, using no-op authentication:', authError.message);
-}
+// try {
+//   const authModule = require('./auth/authenticate');
+//   authenticateRequest = await authModule.authenticateRequest;
+//   getUserInfo = await authModule.getUserInfo;
+//   console.log('Authentication module loaded successfully');
+//   console.log('Authentication module getUserInfo',getUserInfo);
+// } catch (authError) {
+//   console.warn('Authentication module not found, using no-op authentication:', authError.message);
+//   return {
+//     statusCode: 401,
+//     headers: { 'Content-Type': 'application/json' },
+//     body: JSON.stringify({ error: 'Authentication Error' }),
+//   };
+// }
     
     
     const { 
