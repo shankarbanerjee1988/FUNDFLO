@@ -35,17 +35,16 @@ provider:
       allowMethods:
         - OPTIONS
         - POST
-        - GET
       allowCredentials: false
       maxAge: 3600
     
   environment:
     BUCKET_NAME: ff-pdf-generator-bucket-${sls:stage}-${aws:region}
-    NODE_OPTIONS: '--max-old-space-size=2048 --expose-gc'
+    NODE_OPTIONS: '--max-old-space-size=2048'
     AUTH_SERVICE_URL: "https://ar-apis.uat.fundflo.ai/v1/admin/auth/stats"
     STAGE: ${sls:stage}
     # Set static log level
-    LOG_LEVEL: 'debug' # Set to debug for more verbose logs
+    LOG_LEVEL: 'info'
     
   # IAM role statements for the Lambda function
   iamRoleStatements:
@@ -76,9 +75,30 @@ functions:
       - http:
           path: generate-pdf
           method: post
-          cors: true
-          # Explicitly set integration type to AWS_PROXY for Lambda proxy integration
-          integration: aws_proxy
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - Access-Control-Allow-Origin
+              - Access-Control-Allow-Credentials
+            allowMethods:
+              - OPTIONS
+              - POST
+            allowCredentials: false
+            maxAge: 3600
+          # Configure integration to handle binary responses
+          contentHandling: CONVERT_TO_BINARY
+          integration: lambda
+          response:
+            # Add default response headers for CORS
+            headers:
+              Access-Control-Allow-Origin: "'*'"
+              Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              Access-Control-Allow-Methods: "'OPTIONS,POST'"
     # Configure function-specific logs
     tags:
       Service: PDFGenerator
@@ -99,21 +119,46 @@ functions:
 
 # Built-in esbuild configuration (new in Serverless Framework v4)
 build:
-  # Enable esbuild to bundle dependencies properly
-  esbuild: true
-  packager: npm
-  bundle: true
-  minify: false
-  sourceMap: true
-  excludeFiles: 
-    - "./**/*.test.js"
-    - "test/**"
-    - "tests/**"
-    - "./**/__tests__/**"
+  # Disable esbuild for now to simplify deployment
+  esbuild: false
 
-# Dependency bundling and optimization
+# Optimize the Lambda package (include necessary dependencies)
+package:
+  individually: true
+  patterns:
+    # Include specific node_modules
+    - 'node_modules/handlebars/**'
+    - 'node_modules/marked/**'
+    - 'node_modules/moment/**'
+    - 'node_modules/puppeteer-core/**'
+    - 'node_modules/@sparticuz/chromium/**'
+    - 'node_modules/aws-sdk/**'  
+    - 'node_modules/axios/**' 
+
+    # Include application files
+    - 'utils/**'
+    - 'auth/**'
+    - 'handler.js'
+    - 'package.json'
+
+    # Exclude unnecessary files
+    - '!.serverless/**'
+    - '!.git/**'
+    - '!.github/**'
+    - '!test/**'
+    - '!tests/**'
+    - '!__tests__/**'
+    - '!coverage/**'
+    - '!*.test.js'
+    - '!*.spec.js'
+    - '!**/jest.config.js'
+
+plugins:
+  - serverless-plugin-warmup
+  - serverless-offline
+  # - serverless-domain-manager  # Add this plugin for custom domain management
+    
 custom:
-  # Configure Lambda warm-up
   warmup:
     default:
       enabled: true
@@ -125,6 +170,18 @@ custom:
       payload:
         source: 'serverless-warmup'
       logRetentionInDays: 30  # Add this line to ensure log group creation
+
+  # Custom domain configuration
+  # customDomain:
+  #   domainName: service.fundflo.ai # Replace with your actual subdomain
+  #   basePath: '' # Empty for root path
+  #   stage: ${sls:stage}
+  #   createRoute53Record: true
+  #   certificateName: '*.fundflo.ai'
+  #   endpointType: 'regional' # Can be 'regional' or 'edge'
+  #   securityPolicy: tls_1_2
+  #   autoDomain: true
+  #   hostedZoneId: Z0312742AL91H10QHE0Q
 
 resources:
   Resources:
@@ -183,7 +240,8 @@ resources:
       Properties:
         LogGroupName: /aws/lambda/${self:service}-${sls:stage}-generatePdf
         RetentionInDays: 30
-     # Add this new log group
+
+    # Add this new log group
     CorsHandlerLogGroup:
       Type: AWS::Logs::LogGroup
       Properties:
@@ -195,31 +253,8 @@ resources:
       Type: AWS::Logs::LogGroup
       Properties:
         LogGroupName: /aws/lambda/${self:service}-${sls:stage}-warmup-plugin
-        RetentionInDays: 30       
+        RetentionInDays: 30
     
-    # Custom API Gateway Response for CORS
-    GatewayResponseDefault4XX:
-      Type: 'AWS::ApiGateway::GatewayResponse'
-      Properties:
-        ResponseParameters:
-          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
-          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,Access-Control-Allow-Origin'"
-          gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
-        ResponseType: DEFAULT_4XX
-        RestApiId:
-          Ref: 'ApiGatewayRestApi'
-    
-    GatewayResponseDefault5XX:
-      Type: 'AWS::ApiGateway::GatewayResponse'
-      Properties:
-        ResponseParameters:
-          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
-          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,Access-Control-Allow-Origin'"
-          gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
-        ResponseType: DEFAULT_5XX
-        RestApiId:
-          Ref: 'ApiGatewayRestApi'
-  
   # CloudFormation Outputs
   Outputs:
     PdfBucketName:
