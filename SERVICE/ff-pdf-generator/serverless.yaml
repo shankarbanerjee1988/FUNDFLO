@@ -1,10 +1,10 @@
-service: ff-pdf-generator
+service: fundflo-pdf-generator
 
 frameworkVersion: '4'
 
 provider:
   name: aws
-  runtime: nodejs22.x
+  runtime: nodejs20.x
   region: ap-south-1
   timeout: 60
   memorySize: 2048
@@ -40,14 +40,19 @@ provider:
       maxAge: 3600
     
   environment:
-    BUCKET_NAME: ff-pdf-generator-bucket-${sls:stage}-${aws:region}
+    BUCKET_NAME: fundflo-pdf-generator-bucket-${sls:stage}-${aws:region}
     NODE_OPTIONS: '--max-old-space-size=2048 --expose-gc'
     AUTH_SERVICE_URL: "https://ar-apis.uat.fundflo.ai/v1/admin/auth/stats"
     STAGE: ${sls:stage}
     # Set static log level
     LOG_LEVEL: 'debug' # Set to debug for more verbose logs
-    # Using the default paths in chrome-aws-lambda layer
-    PUPPETEER_EXECUTABLE_PATH: "/opt/chrome/chrome"
+    # Multiple possible paths for Chromium to increase reliability
+    # Multiple possible paths to try for Chromium executable
+    PUPPETEER_EXECUTABLE_PATH: "/opt/bin/chromium"
+    CHROMIUM_PATH: "/opt/bin/chromium"
+    CHROME_AWS_LAMBDA_EXECUTABLE_PATH: "/opt/bin/chromium"
+    # Disable sandbox for Lambda environment
+    PUPPETEER_NO_SANDBOX: "true"
     
   # IAM role statements for the Lambda function
   iamRoleStatements:
@@ -69,6 +74,11 @@ provider:
         - xray:PutTraceSegments
         - xray:PutTelemetryRecords
       Resource: "*"
+    # Add permissions to download files to /tmp
+    - Effect: Allow
+      Action:
+        - lambda:InvokeFunction
+      Resource: "*"
 
 functions:
   generatePdf:
@@ -85,9 +95,17 @@ functions:
     tags:
       Service: PDFGenerator
       Environment: ${sls:stage}
-    # Use the latest chromium-lambda layer available - this is critical
+    # IMPORTANT: Use a well-maintained Chromium AWS Lambda layer
     layers:
-      - arn:aws:lambda:ap-south-1:764866452798:layer:chrome-aws-lambda:39
+      # - arn:aws:lambda:ap-south-1:580247275435:layer:LambdaChromiumLayer:2
+      # Backup layer option if the above doesn't work
+      - arn:aws:lambda:ap-south-1:764866452798:layer:chrome-aws-lambda:31
+    runtime: nodejs20.x
+    architecture: x86_64
+    # Increase memory for better performance with Chromium
+    memorySize: 2048
+    # Increase timeout for PDF generation
+    timeout: 60
 
   # Add OPTIONS handler for CORS preflight requests
   corsHandler:
@@ -116,7 +134,7 @@ build:
 plugins:
   - serverless-plugin-warmup
   - serverless-offline
-  - serverless-domain-manager
+  # - serverless-domain-manager  # Temporarily commented out
 
 # Dependency bundling and optimization
 custom:
@@ -133,16 +151,16 @@ custom:
         source: 'serverless-warmup'
       logRetentionInDays: 30  # Add this line to ensure log group creation
   
-  # Custom domain configuration
-  customDomain:
-    domainName: service.fundflo.ai
-    basePath: ''
-    stage: ${sls:stage}
-    createRoute53Record: true
-    certificateName: '*.fundflo.ai'
-    endpointType: 'regional'
-    securityPolicy: tls_1_2
-    apiType: rest
+  # Custom domain configuration - temporarily disabled
+  # customDomain:
+  #   domainName: service.fundflo.ai
+  #   basePath: ''
+  #   stage: ${sls:stage}
+  #   createRoute53Record: true
+  #   certificateName: '*.fundflo.ai'
+  #   endpointType: 'regional'
+  #   securityPolicy: tls_1_2
+  #   apiType: rest
 
 resources:
   Resources:
@@ -251,10 +269,11 @@ resources:
           - - "https://"
             - !Ref ApiGatewayRestApi
             - ".execute-api.${self:provider.region}.amazonaws.com/${sls:stage}"
-    CustomDomainEndpoint:
-      Description: "Custom domain URL for the PDF generation service"
-      Value: 
-        Fn::Join:
-          - ""
-          - - "https://"
-            - "service.fundflo.ai/"
+    # Commenting out custom domain endpoint output
+    # CustomDomainEndpoint:
+    #   Description: "Custom domain URL for the PDF generation service"
+    #   Value: 
+    #     Fn::Join:
+    #       - ""
+    #       - - "https://"
+    #         - "service.fundflo.ai/"
