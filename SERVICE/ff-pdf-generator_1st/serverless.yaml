@@ -1,4 +1,4 @@
-service: ff-pdf-generator
+service: fund-pdf-generator
 
 frameworkVersion: '4'
 
@@ -53,7 +53,7 @@ provider:
       maxAge: 86400
     
   environment:
-    BUCKET_NAME: ff-pdf-generator-bucket-${sls:stage}-${aws:region}
+    BUCKET_NAME: fund-pdf-generator-bucket-${sls:stage}-${aws:region}
     NODE_OPTIONS: '--max-old-space-size=2048'
     STAGE: ${sls:stage}
     AUTH_SERVICE_URL: 'https://ac-apis-dev.uat.fundflo.ai/v1/authentication'
