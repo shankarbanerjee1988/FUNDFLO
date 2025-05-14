@@ -100,13 +100,13 @@ module.exports = async function generatePdfBuffer(html, options = {}) {
     // Default PDF options
     const defaultOptions = {
       format: 'A4',
-      landscape: false,
-      printBackground: true,
-      displayHeaderFooter: true,
-      headerTemplate: defaultHeaderTemplate,
-      footerTemplate: defaultFooterTemplate,
-      margin: { top: "100px", right: "20px", bottom: "80px", left: "20px" },
-      preferCSSPageSize: false,
+      landscape: options.landscape || false,
+      printBackground: options.printBackground || true,
+      displayHeaderFooter: options.displayHeaderFooter || true,
+      headerTemplate: options.headerTemplate || defaultHeaderTemplate,
+      footerTemplate: options.footerTemplate || defaultFooterTemplate,
+      margin: options.margin || { top: "100px", right: "20px", bottom: "80px", left: "20px" },
+      preferCSSPageSize: options.preferCSSPageSize || false,
       timeout: 60000 // 60 second timeout for PDF generation
     };
 

@@ -9,21 +9,15 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With'
 };
-/**
- * Lambda function to generate PDFs from templates
- * @param {Object} event - API Gateway event
- * @returns {Object} - API Gateway response
- */
+
 exports.generatePdf = async (event) => {
-  // Check if this is a warmup invocation
   if (event.source === 'serverless-warmup') {
-    // console.log('WarmUp - Lambda is warm!');
     return { statusCode: 200, body: 'Warmed up' };
   }
 
-      // 🔹 Authentication Check
-      const authError = await authenticateRequest(event);
-      if (authError) return authError;
+  // 🔹 Authentication Check
+  const authInfo = await authenticateRequest(event);
+  if (authInfo?.error) return authError;
 
   console.log('Starting PDF generation process');
   try {
@@ -34,7 +28,7 @@ exports.generatePdf = async (event) => {
     let body;
     let parsedBody;
     
-    console.log('....EVENT BODY.......', event.body);
+    console.log('Processing event body:', typeof event.body);
     
     try {
       // Check if body is base64 encoded
@@ -45,40 +39,84 @@ exports.generatePdf = async (event) => {
         body = event.body || '{}';
       }
       
-      parsedBody = JSON.parse(body);
-      console.log('Parsed body successfully');
+      // Check if body is already a parsed object (happens with certain integrations)
+      if (typeof body === 'object' && body !== null) {
+        parsedBody = body;
+        console.log('Body is already parsed as object');
+      } else {
+        parsedBody = JSON.parse(body);
+        console.log('Parsed JSON body successfully');
+      }
     } catch (e) {
       console.error('Error parsing request body:', e);
       return {
-        userInfo:event?.userInfo,
         statusCode: 400,
-        headers: { 'Content-Type': 'application/json',...corsHeaders },
-        body: JSON.stringify({ error: 'Invalid JSON in request body' }),
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        body: JSON.stringify({ 
+          error: 'Invalid JSON in request body',
+          details: e.message,
+          authInfo: authInfo || {} // Include authInfo or empty object
+        }),
       };
     }
-    
-    const { 
-      templateContent, 
-      data = {},
-      // Pass remaining options as PDF options
-      ...pdfOptions 
-    } = parsedBody;
 
-    // Validate required parameters
+    // Extract required fields from parsedBody
+    const { templateContent, data = {} } = parsedBody;
+
+    // Properly handle PDF options - consolidated approach
+    const pdfOptions = {};
+    
+    // Check if there's a dedicated pdfOptions object
+    if (parsedBody.pdfOptions && typeof parsedBody.pdfOptions === 'object') {
+      console.log('Using dedicated pdfOptions object from request');
+      Object.assign(pdfOptions, parsedBody.pdfOptions);
+    }
+    
+    // Add individual PDF option properties if they exist directly in the request body
+    // and aren't already set in pdfOptions
+    const possiblePdfOptions = [
+      'format', 'landscape', 'printBackground', 'displayHeaderFooter',
+      'headerTemplate', 'footerTemplate', 'margin', 'preferCSSPageSize', 'timeout'
+    ];
+    
+    possiblePdfOptions.forEach(option => {
+      if (parsedBody[option] !== undefined && pdfOptions[option] === undefined) {
+        console.log(`Adding individual PDF option: ${option}`);
+        pdfOptions[option] = parsedBody[option];
+      }
+    });
+    
+    console.log('Final PDF options:', JSON.stringify(pdfOptions, null, 2));
+    console.log('USER INFO:', authInfo);
+
     if (!templateContent) {
       console.warn('Missing templateContent in request');
       return {
-        userInfo:event?.userInfo,
         statusCode: 400,
-        headers: { 'Content-Type': 'application/json',...corsHeaders },
-        body: JSON.stringify({ error: 'Missing templateContent' }),
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        body: JSON.stringify({ 
+          error: 'Missing templateContent',
+          authInfo: authInfo || {} 
+        }),
       };
     }
 
+    // Pass authInfo to the data object for template rendering
+    const enrichedData = {
+      ...data,
+      authInfo, // Include authInfo in the data for template rendering
+    };
+
+    // Add any special variables that might be referenced in templates
+    if (parsedBody.title) enrichedData.title = parsedBody.title;
+    if (parsedBody.copyright) enrichedData.copyright = parsedBody.copyright;
+    if (parsedBody.customFooter) enrichedData.customFooter = parsedBody.customFooter;
+    
+
     // Render HTML template with provided data
     console.log('Rendering HTML template');
-    const html = renderHtml(templateContent, data);
-    
+    const html = renderHtml(templateContent, enrichedData);
+
     // Generate PDF from HTML
     console.log('Generating PDF with puppeteer');
     const pdfBuffer = await generatePdfBuffer(html, pdfOptions);
@@ -87,12 +125,12 @@ exports.generatePdf = async (event) => {
     if (!pdfBuffer || !(pdfBuffer instanceof Buffer)) {
       console.error('PDF generation failed: Invalid buffer returned');
       return {
-        userInfo:event?.userInfo,
         statusCode: 500,
-        headers: { 'Content-Type': 'application/json',...corsHeaders },
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
         body: JSON.stringify({ 
           error: 'Failed to generate PDF',
-          message: 'Invalid buffer returned from PDF generator'
+          message: 'Invalid buffer returned from PDF generator',
+          authInfo: authInfo || {} // Include authInfo or empty object
         }),
       };
     }
@@ -107,42 +145,50 @@ exports.generatePdf = async (event) => {
       if (!base64Data) {
         console.error('Failed to encode PDF as base64');
         return {
-          userInfo:event?.userInfo,
           statusCode: 500,
-          headers: { 'Content-Type': 'application/json',...corsHeaders },
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
           body: JSON.stringify({ 
             error: 'Failed to encode PDF as base64',
+            authInfo: authInfo || {}
           }),
         };
       }
+
       const now = new Date();
       const formattedDateTime = now.toISOString().replace(/[:.]/g, '-');
       const filename = `pdf_${formattedDateTime}.pdf`;
+
       return {
-        userInfo:event?.userInfo,
         statusCode: 200,
         headers: {
-          'Content-Type': 'application/json',
-          'Content-Disposition': `inline; filename="${filename}"`,
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${filename}"`,
           'Content-Length': pdfBuffer.length.toString(),
           ...corsHeaders
         },
         isBase64Encoded: true,
-        body: base64Data,
+        body: base64Data
+        // body: JSON.stringify({
+        //   message: 'PDF generated successfully',
+        //   filename: filename,
+        //   base64: base64Data,
+        //   authInfo: authInfo || {}
+        // }),
       };
     } else {
       // Upload PDF to S3 and return URL
       console.log('Uploading PDF to S3');
-      const s3Url = await uploadToS3(pdfBuffer);
+      const enterpriseId = authInfo?.eventEnterpriseId ? authInfo.eventEnterpriseId : 0;
+      const s3Url = await uploadToS3(pdfBuffer, enterpriseId);
       console.log(`PDF uploaded to: ${s3Url}`);
       
       return {
         statusCode: 200,
-        userInfo:event?.userInfo,
-        headers: { 'Content-Type': 'application/json',...corsHeaders },
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
         body: JSON.stringify({
           message: 'PDF generated and uploaded successfully',
           url: s3Url,
+          authInfo: authInfo || {}, // Include the authInfo in the response
         }),
       };
     }
@@ -150,11 +196,12 @@ exports.generatePdf = async (event) => {
     console.error('PDF generation failed:', err);
     return {
       statusCode: 500,
-      userInfo:event?.userInfo,
-      headers: { 'Content-Type': 'application/json',...corsHeaders },
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
       body: JSON.stringify({ 
         error: 'Failed to generate PDF',
-        message: err.message
+        message: err.message,
+        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+        authInfo: authInfo || {} // Include authInfo or empty object
       }),
     };
   }
