@@ -17,9 +17,20 @@ exports.authenticateRequest = async (event) => {
 
     const authToken = rawAuthToken.startsWith("Bearer ") ? rawAuthToken : `Bearer ${rawAuthToken}`;
 
+    const clientIp = event.requestContext?.identity?.sourceIp || 
+    event.headers?.['X-Forwarded-For']?.split(',')[0].trim();
+
+    const userAgent = event.requestContext?.identity?.userAgent || 
+    event.headers?.['User-Agent'];
+      
+    // Additional client information from headers
+    const referer = event.headers?.Referer || event.headers?.referer;
+    const origin = event.headers?.Origin || event.headers?.origin;
+    const acceptLanguage = event.headers?.['Accept-Language'];
+    let userInfo = {};
     try {
         console.log("Verifying token with Auth Service...");
-        let userInfo = await axios.get(AUTH_SERVICE_URL, { headers: { Authorization: authToken } });
+        userInfo = await axios.get(AUTH_SERVICE_URL, { headers: { Authorization: authToken } });
         userInfo = userInfo?.data?.data;
         eventEnterpriseId = 0;
         if(userInfo && userInfo.enterpriseId){
@@ -29,13 +40,18 @@ exports.authenticateRequest = async (event) => {
         }else if(userInfo && userInfo.enterpriseUuid){
             eventEnterpriseId = userInfo.enterpriseUuid;
         }
+        userInfo.clientIp = clientIp;
+        userInfo.userAgent = userAgent;
+        userInfo.referer = referer;
+        userInfo.origin = origin;
+        userInfo.acceptLanguage = acceptLanguage;
         console.log("Authentication successful");
         console.log("USER INFO....",userInfo);
-        event.eventEnterpriseId = eventEnterpriseId;
-        event.userInfo = userInfo;
-        return null;
+        userInfo.eventEnterpriseId = eventEnterpriseId;
+        return userInfo;
     } catch (error) {
+      userInfo.error = { statusCode: 401, body: JSON.stringify({ error: "Invalid token" }) };
         console.error("Authentication failed:", error.response?.data || error.message);
-        return { statusCode: 401, body: JSON.stringify({ error: "Invalid token" }) };
+        return userInfo;
     }
 };
