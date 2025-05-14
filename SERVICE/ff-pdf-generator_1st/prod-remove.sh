@@ -1,1 +1,1 @@
-serverless remove --stage prod
+serverless remove --stage prod --region ap-south-1

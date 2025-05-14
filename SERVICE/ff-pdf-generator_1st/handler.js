@@ -3,7 +3,12 @@ const generatePdfBuffer = require('./utils/generatePdfBuffer');
 const uploadToS3 = require('./utils/uploadToS3');
 const { authenticateRequest } = require("./auth/authenticate");
 require("dotenv").config();
-
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Credentials': 'true',
+  'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With'
+};
 /**
  * Lambda function to generate PDFs from templates
  * @param {Object} event - API Gateway event
@@ -45,31 +50,12 @@ exports.generatePdf = async (event) => {
     } catch (e) {
       console.error('Error parsing request body:', e);
       return {
+        userInfo:event?.userInfo,
         statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json',...corsHeaders },
         body: JSON.stringify({ error: 'Invalid JSON in request body' }),
       };
     }
-
-//     // Try to load authentication module safely
-// let authenticateRequest = async () => null; // Default no-op authentication
-// let getUserInfo = (event) => ({ userId: 'anonymous' }); // Default user info
-
-// try {
-//   const authModule = require('./auth/authenticate');
-//   authenticateRequest = await authModule.authenticateRequest;
-//   getUserInfo = await authModule.getUserInfo;
-//   console.log('Authentication module loaded successfully');
-//   console.log('Authentication module getUserInfo',getUserInfo);
-// } catch (authError) {
-//   console.warn('Authentication module not found, using no-op authentication:', authError.message);
-//   return {
-//     statusCode: 401,
-//     headers: { 'Content-Type': 'application/json' },
-//     body: JSON.stringify({ error: 'Authentication Error' }),
-//   };
-// }
-    
     
     const { 
       templateContent, 
@@ -82,8 +68,9 @@ exports.generatePdf = async (event) => {
     if (!templateContent) {
       console.warn('Missing templateContent in request');
       return {
+        userInfo:event?.userInfo,
         statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json',...corsHeaders },
         body: JSON.stringify({ error: 'Missing templateContent' }),
       };
     }
@@ -100,8 +87,9 @@ exports.generatePdf = async (event) => {
     if (!pdfBuffer || !(pdfBuffer instanceof Buffer)) {
       console.error('PDF generation failed: Invalid buffer returned');
       return {
+        userInfo:event?.userInfo,
         statusCode: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json',...corsHeaders },
         body: JSON.stringify({ 
           error: 'Failed to generate PDF',
           message: 'Invalid buffer returned from PDF generator'
@@ -119,20 +107,25 @@ exports.generatePdf = async (event) => {
       if (!base64Data) {
         console.error('Failed to encode PDF as base64');
         return {
+          userInfo:event?.userInfo,
           statusCode: 500,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json',...corsHeaders },
           body: JSON.stringify({ 
             error: 'Failed to encode PDF as base64',
           }),
         };
       }
-      
+      const now = new Date();
+      const formattedDateTime = now.toISOString().replace(/[:.]/g, '-');
+      const filename = `pdf_${formattedDateTime}.pdf`;
       return {
+        userInfo:event?.userInfo,
         statusCode: 200,
         headers: {
-          'Content-Type': 'application/pdf',
-          'Content-Disposition': 'inline; filename="output.pdf"',
+          'Content-Type': 'application/json',
+          'Content-Disposition': `inline; filename="${filename}"`,
           'Content-Length': pdfBuffer.length.toString(),
+          ...corsHeaders
         },
         isBase64Encoded: true,
         body: base64Data,
@@ -145,7 +138,8 @@ exports.generatePdf = async (event) => {
       
       return {
         statusCode: 200,
-        headers: { 'Content-Type': 'application/json' },
+        userInfo:event?.userInfo,
+        headers: { 'Content-Type': 'application/json',...corsHeaders },
         body: JSON.stringify({
           message: 'PDF generated and uploaded successfully',
           url: s3Url,
@@ -156,7 +150,8 @@ exports.generatePdf = async (event) => {
     console.error('PDF generation failed:', err);
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
+      userInfo:event?.userInfo,
+      headers: { 'Content-Type': 'application/json',...corsHeaders },
       body: JSON.stringify({ 
         error: 'Failed to generate PDF',
         message: err.message

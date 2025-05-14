@@ -136,6 +136,7 @@ package:
 
     # Include application files
     - 'utils/**'
+    - 'auth/**'
     - 'handler.js'
     - 'package.json'
 
@@ -157,6 +158,7 @@ package:
 plugins:
   - serverless-plugin-warmup
   - serverless-offline
+  # - serverless-domain-manager
     
 custom:
   # Configure Lambda warm-up
@@ -170,7 +172,7 @@ custom:
       timeout: 10
       payload:
         source: 'serverless-warmup'
-
+        
 resources:
   Resources:
     # CORS configuration for API Gateway
