@@ -8,11 +8,12 @@ const BUCKET_NAME = process.env.BUCKET_NAME;
  * @param {Object} options - Upload options
  * @returns {Promise<string>} - Pre-signed S3 URL
  */
-module.exports = async function uploadToS3(buffer, options = {}) {
+module.exports = async function uploadToS3(buffer,enterprise, options = {}) {
   // Generate a unique file name with path
   const fileName = options.fileName || 
     `pdfs/${new Date().toISOString().split('T')[0]}/${Date.now()}-${Math.random().toString(36).substring(2, 10)}.pdf`;
 
+  const fileKey = enterprise ? enterprise+'/'+fileName : enterprise+'/'+fileName;
   // Set content type and other metadata
   const contentType = options.contentType || 'application/pdf';
   const metadata = options.metadata || {};
@@ -20,11 +21,11 @@ module.exports = async function uploadToS3(buffer, options = {}) {
   // Upload parameters
   const params = {
     Bucket: BUCKET_NAME,
-    Key: fileName,
+    Key: fileKey,
     Body: buffer,
     ContentType: contentType,
     Metadata: {
-      'generated-by': 'pdf-generator-service',
+      'generated-by': 'ff-pdf-generator-service',
       'timestamp': new Date().toISOString(),
       ...metadata
     },
@@ -41,7 +42,7 @@ module.exports = async function uploadToS3(buffer, options = {}) {
     
     const url = await s3.getSignedUrlPromise('getObject', {
       Bucket: BUCKET_NAME,
-      Key: fileName,
+      Key: fileKey,
       Expires: signedUrlExpireSeconds
     });
     
