@@ -38,7 +38,33 @@ interface AuthInfo {
         <!-- PDF Options & Template Tab -->
         <div class="tab-content" [class.active]="activeTab === 'options'">
           <div class="options-container">
+
+          <div class="form-group">
+                <label for="pdfResponse">Response Format:</label>
+                <select id="pdfResponse" class="form-control" [(ngModel)]="pdfOptions.pdfResponse">
+                  <option value="base64">Base64</option>
+                  <option value="url">URL</option>
+                </select>
+              </div>  
             <!-- Left side: Template content -->
+                <div class="form-group">
+                  <label for="authUrl">AUTH URL:</label>
+                  <input type="text"  
+                    id="authUrl" 
+                    class="form-control" 
+                    [(ngModel)]="authUrl"
+                    placeholder="Auth URL">
+                </div>
+              <div class="form-group">
+                <label for="authToken">AUTH Token:</label>
+                <input type="text" 
+                  id="authToken" 
+                  class="form-control" 
+                  [(ngModel)]="authToken"
+                  placeholder="Auth Token">
+              </div>
+
+                          <!-- Left side: Template content -->
             <div class="template-section">
               <h3>HTML Template</h3>
               <div class="form-group">
@@ -51,20 +77,15 @@ interface AuthInfo {
                   placeholder="Enter HTML content to convert to PDF">
                 </textarea>
               </div>
+
+              
             </div>
             
             <!-- Right side: PDF Options -->
             <div class="options-section">
               <h3>PDF Options</h3>
               
-              <div class="form-group">
-                <label for="pdfResponse">Response Format:</label>
-                <select id="pdfResponse" class="form-control" [(ngModel)]="pdfOptions.pdfResponse">
-                  <option value="base64">Base64</option>
-                  <option value="url">URL</option>
-                </select>
-              </div>
-              
+           
               <div class="form-row">
                 <div class="form-group half">
                   <label for="format">Page Format:</label>
@@ -587,6 +608,8 @@ export class AppComponent implements OnInit {
   // Active tab tracking
   activeTab: 'options' | 'data' | 'samples' = 'options';
   
+  authUrl: string = "https://services.fundflo.ai/generate-pdf";
+  authToken: string = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ2ZXIiOjEsImNpZCI6ImVlOGYyMDhiLTEzNWQtNDk0MC1kYmI4LTBkMDMzNWUyMGExZiIsInVjZCI6IjIwMDAwMSIsImxpZCI6IjdlOTRmNjMwLWUwYWYtOTlhNS1jZDA0LWUwODcyZWFjNDM4MyIsImVjbyI6IjEwMDAiLCJzdWJjbyI6IkdSRTE2NzAyIiwic3ViaWQiOiIyIiwibG9naW5pZCI6ImVjYzY0MTg0LWIyOTQtNDRmOC04MGMxLTRkYWQ5ZmVhZmIxNiIsIm5hbWUiOiJTaGFua2FyIEJhbmVyamVlIiwiZ3VfdXVpZCI6bnVsbCwiZF9uYW1lIjoiU2hhbmthciBCYW5lcmplZSIsIm1vYiI6Ijc4Mjk2Mjk3OTQiLCJwcm9kdWN0UHJpY2luZyI6IiIsImJyYW5jaENvZGUiOiIiLCJyZWdpb25Db2RlIjoiIiwiem9uZUNvZGUiOiIiLCJoYXNUY3MiOiIiLCJ0Y3NDb2RlIjoiIiwiZGl2aXNpb25Db2RlIjoiIiwicGF5bWVudFRlcm1Db2RlIjoiIiwic3RhdGVDb2RlIjoiIiwic3RhdGVDdXN0b21Db2RlIjoiIiwicm9sZSI6IlN1cGVyX1VzZXIiLCJzY29wZSI6WyJvcGVuaWQiLCJtb2JpbGUiXSwiaWF0IjoxNzQ3MjgwMjcwLCJleHAiOjE3NDczNjY2NzAsImF1ZCI6Imh0dHBzOi8vc2l5YXJhbS5mdW5kZmxvLmFpIiwiaXNzIjoiaHR0cHM6Ly90ZXN0LWVudGVycHJpc2UtYXBpLmZ1bmRmbG8uYWkiLCJzdWIiOiI1ZGFjODhhNy1jMmNmLWZmYzAtYmM1OS00ZDdhODMwZmM1ZDkiLCJqdGkiOiJkYTE0ZWJlYTliOTExNzJkMjk0NGIzNGM4ZTdkMmY5MTQyOGM5ZDE4In0.YhJAuImn09AGzmA21CLf5ii97aRo9G8ucKmee7JZWRMUEePYW_3N3vSb_EgLVlIbSefOLRINYF6DYtoxjPb9Y6qLQbyHEyRDKdiXAK8RN7LzawGH8jHryWEaUfiOLpxVprnEPgBJ0BB4vIdvUbKuWhVn0m0GyKkRh4CPniWned0pdAlPzyJOKmJmkVZpL8u_wSHaQU0sTbE0eBccvmi7AQ3YRgjHJfrlb6DNqQu_WVD94E2d12o-z41Ng3XAY3DFDDny55XDuejOMjG_TVpKO_hUhnN0vYVWc7eqWP-ZUL2U2H_Uay9qWxT4LV8DRSEFvrDT_bRFbBIHbruAagVoG_eRhYX9dzexkbjEqd4H0vQQtMv-e53210i5eORuXFb8T85i4dgUohEtte6b9mBdQp2y3eVKgMA5eQxvuvfcuUiBzCEQheQCZkBwLgssKvvwMPHblsLk8_XCVpiSvmUgNA0JmqKHqSxfyb5GTfxLlCw8wC1HkBmaMG8k1Ls3pzkjKs8G6dhlFZtsIxWm0GgrSI3mybiUZocBr-V5s_GXbmfGgof8c_9Bo7Q4LGd3XwGVEYhIrS5_teAUjNCFKvSaj3wXpSNJWLXPAQynIjiQ8-uHj3ba2LEZnUXoCI0Oz2Jm0wVcYIunXArbNvdYUksos4lOTITO9EjuvPGH2n6yzMA";
   // Template content
   templateContent: string = "<h1>This is a test PDF generated from HTML content.</h1> <img src='{{thumbnailUrl}}'/>{{#if technicalSpecs.length}}  <div style='margin-top: 20px; text-align: left;'>    <h3>Technical Specifications</h3>    <table style='width: 100%; border-collapse: collapse;'>      {{#each technicalSpecs}}      <tr style='{{#if this.highlight}}background-color: #f5f5f5;{{/if}}'>        <td style='padding: 8px; border: 1px solid #ddd;'>{{this.key}}</td><td style='padding: 8px; border: 1px solid #ddd; '>{{this.value}}</td>      </tr>     {{/each}}{{/if}}";
 
@@ -728,8 +751,7 @@ th{background-color:#f2f2f2}
   ngOnInit() {
     // Default sample data
     const sampleData = {
-      thumbnailUrl:"https://fundflo-dev-ar-ap-south-1-files-public.s3.ap-south-1.amazonaws.com/product-catalog/bf2b960b-8547-317c-c9c4-ad47576085c6/SAWPLN/inside_SAWPLN.jpg",
-
+      
       productInfo: {
         name: "DOL SHAKTI WP",
         code: "SAWPJN",
@@ -777,6 +799,8 @@ th{background-color:#f2f2f2}
     }
   }
 
+
+
   generatePdf() {
     // Validate inputs
     if (!this.templateContent) {
@@ -799,7 +823,13 @@ th{background-color:#f2f2f2}
     this.authInfo = null;
     this.authInfoItems = [];
 
-    this.pdfService.generatePdf(this.templateContent, this.pdfOptions, this.jsonData)
+    const dataWithAuth = {
+      ...this.jsonData,
+      authUrl: this.authUrl,
+      authToken: this.authToken
+    };
+
+    this.pdfService.generatePdf(this.templateContent, this.pdfOptions, dataWithAuth)
       .subscribe({
         next: (response: any) => {
           // Process response - could be a JSON object or direct response from API

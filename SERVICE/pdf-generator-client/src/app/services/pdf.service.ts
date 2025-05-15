@@ -35,39 +35,9 @@ export interface PdfOptions {
   providedIn: 'root'
 })
 export class PdfService {
-  // Allow customization of API URL and token from outside
-  private _apiUrl: string = environment.apiUrl || 'https://api.fundflo.ai/pdf';
-  private _authToken: string | null = null;
+//   private apiUrl = environment.apiUrl || 'https://api.fundflo.ai/pdf';
 
-  constructor(private http: HttpClient) {
-    // Initialize token from localStorage if available
-    this._authToken = localStorage.getItem('auth_token');
-  }
-
-  // Getters and setters for API URL and auth token
-  get apiUrl(): string {
-    return this._apiUrl;
-  }
-
-  set apiUrl(url: string) {
-    if (url && url.trim() !== '') {
-      this._apiUrl = url;
-    }
-  }
-
-  get authToken(): string | null {
-    return this._authToken;
-  }
-
-  set authToken(token: string | null) {
-    this._authToken = token;
-    // Also save to localStorage for persistence
-    if (token) {
-      localStorage.setItem('auth_token', token);
-    } else {
-      localStorage.removeItem('auth_token');
-    }
-  }
+  constructor(private http: HttpClient) {}
 
   /**
    * Generates a PDF from template content, options, and data
@@ -78,23 +48,35 @@ export class PdfService {
    * @returns An Observable with the PDF URL, file name, and base64 data
    */
   generatePdf(templateContent: string, pdfOptions: PdfOptions, data: any): Observable<PdfResponse> {
+    
+    const apiUrl = data.authUrl+'?output='+pdfOptions.pdfResponse;
+    const authToken = data.authToken;
+
+    
     const headers = new HttpHeaders({
       'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + (this._authToken || this.getDefaultAuthToken())
+    //   'Authorization': 'Bearer ' + this.getAuthToken()
+      'Authorization': 'Bearer ' + authToken
+
     });
 
-    // Restructure the payload to match what the Lambda expects
+    // MODIFIED: Restructure the payload to match what the Lambda expects
+    // Move key PDF options to the root level while maintaining the pdfOptions object
     const payload = {
       templateContent: templateContent,
       data: data,      
       pdfOptions: pdfOptions
     };
 
-    // Handle the response type differently based on pdfResponse
+    // MODIFIED: Handle the response type differently based on pdfResponse
     if (pdfOptions.pdfResponse === 'base64') {
-      // For base64 output, we need to handle binary data
+      // For base64 output, we need to handle two different cases:
+      // 1. Lambda returns application/pdf with isBase64Encoded: true
+      // 2. Lambda returns application/json with a base64 string inside
+      
+      // Make the request with responseType 'arraybuffer' to handle binary data
       return this.http.post(
-        `${this._apiUrl}/generate-pdf?output=base64`,
+        `${apiUrl}`,
         payload,
         { headers, responseType: 'arraybuffer' }
       ).pipe(
@@ -115,7 +97,7 @@ export class PdfService {
     } else {
       // For URL output, use the existing method
       return this.http.post<PdfResponse>(
-        `${this._apiUrl}/generate-pdf?output=url`,
+        `${apiUrl}`,
         payload,
         { headers }
       ).pipe(
@@ -136,7 +118,7 @@ export class PdfService {
   }
 
   /**
-   * Convert ArrayBuffer to Base64 string
+   * NEW METHOD: Convert ArrayBuffer to Base64 string
    */
   private arrayBufferToBase64(buffer: ArrayBuffer): string {
     let binary = '';
@@ -151,10 +133,17 @@ export class PdfService {
   }
 
   /**
-   * Retrieves the default auth token for fallback
+   * Retrieves the auth token from storage or environment
    */
-  private getDefaultAuthToken(): string {
-    return 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ2ZXIiOjEsImNpZCI6IjI5ZjE1MDZkLWU4Y2UtNDkwOC04ZjdiLTUzNWVmYWQ0OTIyZiIsInVjZCI6IjMwMzg0NyIsImxpZCI6IjJhNmIyMzU1LWExNDAtMzBlMC0xYWYyLTQ3ZGI3MDFmZDYwNSIsImVjbyI6IjEwMDAiLCJzdWJjbyI6IktBSjMwMjQ1Iiwic3ViaWQiOiI2IiwibG9naW5pZCI6ImUzNzNmMzViLWIzMjEtNDBmOS1hOWUyLTVmODUxN2EwMjFjNSIsIm5hbWUiOiJBdHVsIE5pZ2FtIiwiZ3VfdXVpZCI6bnVsbCwiZF9uYW1lIjoiQXR1bCBOaWdhbSIsIm1vYiI6Ijk4MTA2MDgyMTAiLCJwcm9kdWN0UHJpY2luZyI6IiIsImJyYW5jaENvZGUiOiIiLCJyZWdpb25Db2RlIjoiIiwiem9uZUNvZGUiOiIiLCJoYXNUY3MiOiIiLCJ0Y3NDb2RlIjoiIiwiZGl2aXNpb25Db2RlIjoiIiwicGF5bWVudFRlcm1Db2RlIjoiIiwic3RhdGVDb2RlIjoiIiwic3RhdGVDdXN0b21Db2RlIjoiIiwicm9sZSI6IlNhbGVzX0Nvb3JkaW5hdG9yIiwic2NvcGUiOlsib3BlbmlkIiwibW9iaWxlIl0sImlhdCI6MTc0NzEzNDI0NywiZXhwIjoxNzQ3MjIwNjQ3LCJhdWQiOiJodHRwczovL2FyLmRldi5mdW5kZmxvLmFpIiwiaXNzIjoiaHR0cHM6Ly9hci1hcGlzLWRldi51YXQuZnVuZGZsby5haSIsInN1YiI6IjQ2NjFiNzU4LTQ2MWMtYjY3Zi0zYjRhLTI4MDg1YTI2OWY4ZCIsImp0aSI6ImIyZmUyMmVjMzA1ZTYxNDZjMGE5OGM3MGFlMDg5YTJmYjI2YTAzY2QifQ.EHKftftaCC8k5BGShrn27MQm5Mdlc0z3qaQhq8DK1cLGIAR_g96xjcAz1LqjwG0EC1bghO4CoAzmkQ7SUkTDPGWZh6NOn1O8-pTGj2oBD7daO63wUNqVKJx_kTotqEPDPrcdzbkhTsFv5SwBKgyqSIe39UAIUObMwklmGB4dNXGp-vFNJ3Z5VhyWQYjoxOXOncngCyMnAxmUWkEGw7JQKm4lTL3qR8v_cHdDfDNARBltdN4Dgs9xSz7svqsn9evVDJk50rnm4EsvWy1rjqNo4Qg0bmQpTXQpu8eL-9i86_at4m7TJT4MR9nzPuEk3dVmM4Q3PjBq6PIJcttwZs0RzyVVWeqbWAXBfA_PvSThrz7gumBvIdcWcYgE9xdLKKCQ1Ylp-DrKHAeo7kGb0O3KVOhknpQWJb1Vb3a1dL7ApcDWiUpH7N3L3Pz5o7M2CF4xTJEQHEiPbHajLOihsFBHkAnUktQtb5lsuVPS6NlOJSAANSIhcKPfWJp1dlGzxMSLW97PWM8Jrxpn1an9ByS3VX69jPo3_3AttHEzR_CZzZKOipO2YlPP4jOG0CqEVH4Ra8iqdsVdDf3zad9gkbXH4rj9D8m53BCOcttfk3BvYFMbZnc3IDAHZZmpFqO4mRbe5bfieNTOQ0jIKflxUIooYNFw-qCp3hbL3mnFFGrYkqc';
+  private getAuthToken(): string {
+    // Try to get from localStorage first
+    const storedToken = localStorage.getItem('auth_token');
+    if (storedToken) {
+      return storedToken;
+    }
+    
+    // Fallback to the default token
+    return 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ2ZXIiOjEsImNpZCI6ImVlOGYyMDhiLTEzNWQtNDk0MC1kYmI4LTBkMDMzNWUyMGExZiIsInVjZCI6IjIwMDAwMSIsImxpZCI6IjdlOTRmNjMwLWUwYWYtOTlhNS1jZDA0LWUwODcyZWFjNDM4MyIsImVjbyI6IjEwMDAiLCJzdWJjbyI6IkdSRTE2NzAyIiwic3ViaWQiOiIyIiwibG9naW5pZCI6ImVjYzY0MTg0LWIyOTQtNDRmOC04MGMxLTRkYWQ5ZmVhZmIxNiIsIm5hbWUiOiJTaGFua2FyIEJhbmVyamVlIiwiZ3VfdXVpZCI6bnVsbCwiZF9uYW1lIjoiU2hhbmthciBCYW5lcmplZSIsIm1vYiI6Ijc4Mjk2Mjk3OTQiLCJwcm9kdWN0UHJpY2luZyI6IiIsImJyYW5jaENvZGUiOiIiLCJyZWdpb25Db2RlIjoiIiwiem9uZUNvZGUiOiIiLCJoYXNUY3MiOiIiLCJ0Y3NDb2RlIjoiIiwiZGl2aXNpb25Db2RlIjoiIiwicGF5bWVudFRlcm1Db2RlIjoiIiwic3RhdGVDb2RlIjoiIiwic3RhdGVDdXN0b21Db2RlIjoiIiwicm9sZSI6IlN1cGVyX1VzZXIiLCJzY29wZSI6WyJvcGVuaWQiLCJtb2JpbGUiXSwiaWF0IjoxNzQ3MjgwMjcwLCJleHAiOjE3NDczNjY2NzAsImF1ZCI6Imh0dHBzOi8vc2l5YXJhbS5mdW5kZmxvLmFpIiwiaXNzIjoiaHR0cHM6Ly90ZXN0LWVudGVycHJpc2UtYXBpLmZ1bmRmbG8uYWkiLCJzdWIiOiI1ZGFjODhhNy1jMmNmLWZmYzAtYmM1OS00ZDdhODMwZmM1ZDkiLCJqdGkiOiJkYTE0ZWJlYTliOTExNzJkMjk0NGIzNGM4ZTdkMmY5MTQyOGM5ZDE4In0.YhJAuImn09AGzmA21CLf5ii97aRo9G8ucKmee7JZWRMUEePYW_3N3vSb_EgLVlIbSefOLRINYF6DYtoxjPb9Y6qLQbyHEyRDKdiXAK8RN7LzawGH8jHryWEaUfiOLpxVprnEPgBJ0BB4vIdvUbKuWhVn0m0GyKkRh4CPniWned0pdAlPzyJOKmJmkVZpL8u_wSHaQU0sTbE0eBccvmi7AQ3YRgjHJfrlb6DNqQu_WVD94E2d12o-z41Ng3XAY3DFDDny55XDuejOMjG_TVpKO_hUhnN0vYVWc7eqWP-ZUL2U2H_Uay9qWxT4LV8DRSEFvrDT_bRFbBIHbruAagVoG_eRhYX9dzexkbjEqd4H0vQQtMv-e53210i5eORuXFb8T85i4dgUohEtte6b9mBdQp2y3eVKgMA5eQxvuvfcuUiBzCEQheQCZkBwLgssKvvwMPHblsLk8_XCVpiSvmUgNA0JmqKHqSxfyb5GTfxLlCw8wC1HkBmaMG8k1Ls3pzkjKs8G6dhlFZtsIxWm0GgrSI3mybiUZocBr-V5s_GXbmfGgof8c_9Bo7Q4LGd3XwGVEYhIrS5_teAUjNCFKvSaj3wXpSNJWLXPAQynIjiQ8-uHj3ba2LEZnUXoCI0Oz2Jm0wVcYIunXArbNvdYUksos4lOTITO9EjuvPGH2n6yzMA';
   }
 
   /**
